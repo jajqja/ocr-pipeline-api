@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException
 import torch
 
-from app.schemas import HealthResponse
+from app.schemas.health import HealthResponse
 from app.core.logger import get_logger
 from app.core.config import get_settings
 

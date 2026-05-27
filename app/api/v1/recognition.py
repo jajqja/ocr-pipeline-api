@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
-from app.schemas import RecognitionResponse
+from app.schemas.recognition import RecognitionResponse
 from app.services.recognition import RecognitionService
 from app.core.logger import get_logger
 from surya.common.surya.schema import TaskNames

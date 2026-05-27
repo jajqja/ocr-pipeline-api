@@ -86,7 +86,7 @@ class RecognitionService:
     @classmethod
     def recognize_from_image(
         cls,
-        image_data: str,
+        images_data: list[str],
         task_name: str = TaskNames.ocr_with_boxes,
         batch_size: Optional[int] = None,
         max_tokens: Optional[int] = None,
@@ -110,9 +110,10 @@ class RecognitionService:
             settings = get_settings()
 
             # Load image
-            image = cls.load_image_from_base64(image_data)
-            image_size = image.size
-            logger.info(f"Image loaded: {image.size}")
+            images = [cls.load_image_from_base64(image) for image in images_data]
+
+            bboxes = [[[0, 0, image.size[0], image.size[1]] for image in images]]
+            logger.info(f"Loaded {len(images)} images for recognition.")
 
             # Get recognizer
             recognizer = cls.get_recognition_predictor()
@@ -126,11 +127,9 @@ class RecognitionService:
             # Run recognition
             logger.info(f"Running recognition with task: {task_name}...")
             results = recognizer(
-                [image],
+                images,
                 task_names=[task_name],
-                bboxes=[
-                    [[0, 0, int(image_size[0]), int(image_size[1])]]
-                ],  # Full image as bbox
+                bboxes=bboxes,
                 recognition_batch_size=batch_size,
                 math_mode=math_mode,
                 max_tokens=max_tokens,

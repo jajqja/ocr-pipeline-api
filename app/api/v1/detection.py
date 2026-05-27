@@ -1,29 +1,25 @@
 """Text detection API endpoints."""
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
-from typing import Optional
 
-from app.schemas import (
-    DetectionResponse,
+from app.schemas.bbox import (
     BBox,
     Polygon,
+)
+
+from app.schemas.detection import (
+    DetectionResponse,
     TextDetection,
     ImageDetectionResult,
+    DetectionRequest,
 )
+
 from app.services.detection import DetectionService
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/detection", tags=["detection"])
-
-
-class DetectionRequest(BaseModel):
-    """Detection request model."""
-
-    images_data: list[str] = Field(..., description="Base64 encoded image data")
-    batch_size: Optional[int] = None
 
 
 @router.post("", response_model=DetectionResponse)
