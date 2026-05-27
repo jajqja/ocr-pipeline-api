@@ -36,5 +36,5 @@ class DetectionResponse(BaseModel):
 class DetectionRequest(BaseModel):
     """Detection request model."""
 
-    images_data: list[str] = Field(..., description="Base64 encoded image data")
+    images_data: List[str] = Field(..., description="Base64 encoded image data")
     batch_size: Optional[int] = None

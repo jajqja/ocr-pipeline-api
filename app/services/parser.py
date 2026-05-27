@@ -12,7 +12,8 @@ import torch
 from surya.common.surya.schema import TaskNames
 
 from app.core.config import get_settings
-from app.schemas import TextDetection, TextLine, BBox, Polygon
+from app.schemas.bbox import TextLine, BBox, Polygon
+from app.schemas.detection import TextDetection
 from app.services.detection import DetectionService
 from app.services.recognition import RecognitionService
 

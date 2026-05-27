@@ -5,13 +5,13 @@ from pydantic import BaseModel
 from typing import Optional
 
 from app.schemas.parser import ParserResponse
-from app.services.parer import ParserService
+from app.services.parser import ParserService
 from app.core.logger import get_logger
 from surya.common.surya.schema import TaskNames
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/parse", tags=["parser"])
+router = APIRouter(prefix="/parser", tags=["parser"])
 
 
 class ParserRequest(BaseModel):

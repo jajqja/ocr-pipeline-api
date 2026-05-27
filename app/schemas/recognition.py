@@ -3,6 +3,21 @@ from pydantic import BaseModel, Field
 
 from app.schemas.bbox import TextLine
 
+from surya.common.surya.schema import TaskNames
+
+
+class RecognitionRequest(BaseModel):
+    """Recognition request model."""
+
+    images_data: List[str]
+    bboxes: Optional[List[List[List[int]]]] = (
+        None  # Optional bounding boxes for each image
+    )
+    task_name: str = TaskNames.ocr_with_boxes
+    batch_size: Optional[int] = None
+    max_tokens: Optional[int] = None
+    math_mode: bool = True
+
 
 class ImageRecognitionResult(BaseModel):
     """Kết quả Text Recognition cho từng ảnh riêng biệt trong batch"""

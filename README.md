@@ -162,21 +162,105 @@ Detect text regions in an image.
 }
 ```
 
-#### 3. Text Recognition
+#### 3. Recognition with Bounding Boxes
 
 ```bash
 POST /api/v1/recognition
 ```
 
-Recognize text in the full image.
+Recognize text from specific bounding boxes.
 
 **Request:**
 ```json
 {
-  "image_data": "base64_encoded_image",
+  "images_data": [
+    "base64_encoded_image_1...",
+    "base64_encoded_image_2..."
+  ],
+  "bboxes": [
+    [
+      [10, 20, 100, 50],
+      [120, 30, 200, 60]
+    ],
+    [
+      [10, 20, 100, 50],
+      [120, 30, 200, 60]
+    ]
+  ],
   "task_name": "ocr_with_boxes",
   "batch_size": null,
-  "max_tokens": 500,
+  "max_tokens": 500
+}
+```
+
+**Request:**
+```json
+{
+  "success": true,
+  "results": [
+    {
+      "image_index": 0,
+      "text_lines": [
+        {
+          "text": "Text in region 1 of image 0",
+          "confidence": 0.96,
+          "bbox": {"x1": 12.0, "y1": 22.0, "x2": 98.0, "y2": 48.0}
+        },
+        {
+          "text": "Text in region 2 of image 0",
+          "confidence": 0.91,
+          "bbox": {"x1": 122.0, "y1": 32.0, "x2": 198.0, "y2": 58.0}
+        }
+      ]
+    },
+    {
+      "image_index": 1,
+      "text_lines": [
+        {
+          "text": "Text in region 1 of image 1",
+          "confidence": 0.90,
+          "bbox": {"x1": 12.0, "y1": 22.0, "x2": 98.0, "y2": 48.0}
+        },
+        {
+          "text": "Text in region 2 of image 1",
+          "confidence": 0.88,
+          "bbox": {"x1": 122.0, "y1": 32.0, "x2": 198.0, "y2": 58.0}
+        }
+      ]
+    },
+  ],
+  "processing_time": 5.34,
+  "message": "Processed 2 images, recognized total 4 text lines."
+}
+```
+
+#### 4. Text Recognition without Bouding Boxes
+
+Recognize text directly from raw images without providing explicit spatial layouts or bounding boxes.
+
+[!WARNING]
+
+**Important Performance Note**: 
+- This standalone recognition model is highly specialized. It performs best only when the input images are cropped into single text lines or small text paragraphs.
+- If your input consists of full-page documents or large complex images, this endpoint is not recommended and will yield poor results. Instead, you should:
+  - Use the full document pipeline endpoint: `/api/v1/parse`
+  - Or execute a two-step process: Pass the image to the Text Detection endpoint (`/api/v1/detection`) first to extract text bounding boxes, then feed those cropped coordinates into the Recognition with Bounding Boxes endpoint.
+
+```bash
+POST /api/v1/recognition
+```
+
+Recognize text
+
+**Request:**
+```json
+{
+  "images_data": [
+    "base64_encoded_image_1...",
+    "base64_encoded_image_2..."
+  ],
+  "task_name": "ocr_without_boxes",
+  "batch_size": null,
   "math_mode": true
 }
 ```
@@ -185,43 +269,37 @@ Recognize text in the full image.
 ```json
 {
   "success": true,
-  "text_lines": [
+  "results": [
     {
-      "text": "Recognized text",
-      "confidence": 0.92,
-      "chars": [...],
-      "bbox": {"x1": 10, "y1": 20, "x2": 100, "y2": 50}
-    }
+      "image_index": 0,
+      "text_lines": [
+        {
+          "text": "Full text of image 0",
+          "confidence": 0.96,
+          "bbox": {"x1": 12.0, "y1": 22.0, "x2": 98.0, "y2": 48.0}
+        }
+      ]
+    },
+    {
+      "image_index": 1,
+      "text_lines": [
+        {
+          "text": "Full text of image 1",
+          "confidence": 0.90,
+          "bbox": {"x1": 12.0, "y1": 22.0, "x2": 98.0, "y2": 48.0}
+        }
+      ]
+    },
   ],
-  "full_text": "Recognized text",
-  "processing_time": 2.45,
-  "message": "Recognized 1 text lines"
-}
-```
-
-#### 4. Recognition with Bounding Boxes
-
-```bash
-POST /api/v1/recognition/with-bboxes
-```
-
-Recognize text from specific bounding boxes.
-
-**Request:**
-```json
-{
-  "image_data": "base64_encoded_image",
-  "bboxes": [[10, 20, 100, 50], [120, 30, 200, 60]],
-  "task_name": "ocr_with_boxes",
-  "batch_size": null,
-  "max_tokens": 500
+  "processing_time": 5.34,
+  "message": "Processed 2 images, recognized total 2 text lines."
 }
 ```
 
 #### 5. Full OCR Pipeline
 
 ```bash
-POST /api/v1/parse
+POST /api/v1/parser
 ```
 
 Run complete OCR pipeline (detection + recognition).
@@ -265,7 +343,7 @@ with open("document.png", "rb") as f:
 
 # Send to API
 response = requests.post(
-    "http://localhost:8000/api/v1/parse",
+    "http://localhost:8000/api/v1/parser",
     json={
         "image_data": image_data,
         "task_name": "ocr_with_boxes"
@@ -329,6 +407,11 @@ ocr-pipeline-api/
 │   │   └── parer.py         # Parser service
 │   ├── schemas/
 │   │   └── __init__.py      # Pydantic models
+│   │   └── bbox.py      
+│   │   └── detection.py      
+│   │   └── health.py      
+│   │   └── regconition.py      
+│   │   └── parser.py      
 │   └── core/
 │       ├── config.py        # Configuration
 │       └── logger.py        # Logging setup

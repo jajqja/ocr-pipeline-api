@@ -85,20 +85,24 @@ class RecognitionService:
             raise ValueError(f"Failed to load image: {e}")
 
     @classmethod
-    def recognize_from_images(
+    def recognize(
         cls,
-        images_data: list[str],
+        images_data: List[str],
+        bboxes: Optional[List[List[List[int]]]] = None,
         task_name: str = TaskNames.ocr_with_boxes,
         batch_size: Optional[int] = None,
+        max_tokens: Optional[int] = None,
         math_mode: bool = True,
     ) -> Tuple[List[ImageRecognitionResult], float]:
         """
         Recognize text in image using full pipeline.
 
         Args:
-            images_data: List of ase64 encoded image data
+            images_data: List of base64 encoded image data
+            bboxes: List of bounding boxes for each image [[[x1,y1,x2,y2], ...], [...]]
             task_name: Task name (ocr_with_boxes, ocr_without_boxes, etc.)
             batch_size: Batch size for recognition
+            max_tokesn: Maximum tokens for generation (if applicable)
             math_mode: Whether to enable math mode
 
         Returns:
@@ -111,7 +115,9 @@ class RecognitionService:
             # Load image
             images = [cls.load_image_from_base64(image) for image in images_data]
 
-            bboxes = [[[0, 0, image.size[0], image.size[1]] for image in images]]
+            if not bboxes:
+                bboxes = [[[0, 0, image.size[0], image.size[1]]] for image in images]
+
             logger.info(f"Loaded {len(images)} images")
 
             # Get recognizer
@@ -129,19 +135,17 @@ class RecognitionService:
                 bboxes=bboxes,
                 task_names=[task_name] * len(images),
                 recognition_batch_size=batch_size,
+                max_tokens=max_tokens,
                 math_mode=math_mode,
             )
 
-            # Convert results to TextLine objects
             batch_results = []
             total_lines_count = 0
 
             for img_idx, ocr_result in enumerate(results):
-                # Convert kết quả của ảnh hiện tại sang danh sách TextLine
                 text_lines = cls._convert_results(ocr_result)
                 total_lines_count += len(text_lines)
 
-                # Gom cụm theo Schema ImageRecognitionResult mới tạo
                 img_result = ImageRecognitionResult(
                     image_index=img_idx, text_lines=text_lines
                 )
@@ -157,63 +161,6 @@ class RecognitionService:
 
         except Exception as e:
             logger.error(f"Recognition error: {e}")
-            raise
-
-    @classmethod
-    def recognize_with_bboxes(
-        cls,
-        image_data: str,
-        bboxes: List[List[int]],
-        task_name: str = TaskNames.ocr_with_boxes,
-        batch_size: Optional[int] = None,
-        max_tokens: Optional[int] = None,
-    ) -> Tuple[List[TextLine], float]:
-        """
-        Recognize text from provided bounding boxes.
-
-        Args:
-            image_data: Base64 encoded image data
-            bboxes: List of bounding boxes [[x1,y1,x2,y2], ...]
-            task_name: Task name
-            batch_size: Batch size
-            max_tokens: Maximum tokens
-
-        Returns:
-            Tuple of (text lines, processing time)
-        """
-        try:
-            start_time = time.time()
-            settings = get_settings()
-
-            image = cls.load_image_from_base64(image_data)
-            logger.info(f"Image loaded: {image.size}")
-
-            recognizer = cls.get_recognition_predictor()
-
-            if batch_size is None:
-                batch_size = settings.BATCH_SIZE_RECOGNITION
-
-            if max_tokens is None:
-                max_tokens = settings.MAX_TOKENS
-
-            logger.info(f"Running recognition on {len(bboxes)} bounding boxes...")
-            results = recognizer(
-                [image],
-                task_names=[task_name],
-                bboxes=[bboxes],
-                recognition_batch_size=batch_size,
-                max_tokens=max_tokens,
-            )
-
-            text_lines = cls._convert_results(results[0])
-
-            processing_time = time.time() - start_time
-            logger.info(f"Recognition completed in {processing_time:.2f}s.")
-
-            return text_lines, processing_time
-
-        except Exception as e:
-            logger.error(f"Recognition with bboxes error: {e}")
             raise
 
     @staticmethod
