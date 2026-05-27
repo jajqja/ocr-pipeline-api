@@ -1,10 +1,16 @@
 """Text detection API endpoints."""
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
-from app.schemas import DetectionResponse, BBox, Polygon, TextDetection
+from app.schemas import (
+    DetectionResponse,
+    BBox,
+    Polygon,
+    TextDetection,
+    ImageDetectionResult,
+)
 from app.services.detection import DetectionService
 from app.core.logger import get_logger
 
@@ -16,54 +22,63 @@ router = APIRouter(prefix="/detection", tags=["detection"])
 class DetectionRequest(BaseModel):
     """Detection request model."""
 
-    image_data: str
+    images_data: list[str] = Field(..., description="Base64 encoded image data")
     batch_size: Optional[int] = None
 
 
 @router.post("", response_model=DetectionResponse)
-async def detect_text(request: DetectionRequest):
+async def detect_batch_text(request: DetectionRequest):
     """
-    Detect text in image.
-
-    Args:
-        request: Detection request with base64 encoded image
-
-    Returns:
-        DetectionResponse with detected text regions
+    Detect text in batch of images.
     """
     try:
-        logger.info("Text detection request received")
+        logger.info(
+            f"Text detection request received for batch size: {len(request.images_data)}"
+        )
 
         # Run detection
-        detection_result, processing_time = DetectionService.detect(
-            image_data=request.image_data,
+        detection_result, processing_time = DetectionService.detect_batch(
+            images_data=request.images_data,
             batch_size=request.batch_size,
         )
 
-        # Convert detections to response format
-        detections = []
-        for bbox_obj in detection_result.bboxes:
-            polygon = bbox_obj.polygon
-            xs = [p[0] for p in polygon]
-            ys = [p[1] for p in polygon]
+        batch_results = []
+        total_detections_count = 0
 
-            detection = TextDetection(
-                bbox=BBox(
-                    x1=float(min(xs)),
-                    y1=float(min(ys)),
-                    x2=float(max(xs)),
-                    y2=float(max(ys)),
-                ),
-                polygon=Polygon(points=polygon),
-                confidence=float(bbox_obj.confidence),
+        # Duyệt qua kết quả của từng ảnh trong batch
+        for img_idx, detection in enumerate(detection_result):
+            image_detections = []
+
+            # Duyệt qua các bbox tìm thấy TRONG ẢNH NÀY
+            for bbox_obj in detection.bboxes:
+                polygon = bbox_obj.polygon
+                xs = [p[0] for p in polygon]
+                ys = [p[1] for p in polygon]
+
+                text_detection = TextDetection(
+                    bbox=BBox(
+                        x1=float(min(xs)),
+                        y1=float(min(ys)),
+                        x2=float(max(xs)),
+                        y2=float(max(ys)),
+                    ),
+                    polygon=Polygon(points=polygon),
+                    confidence=float(bbox_obj.confidence),
+                )
+                image_detections.append(text_detection)
+
+            # Gom kết quả của ảnh này lại và append vào kết quả tổng của batch
+            img_result = ImageDetectionResult(
+                image_index=img_idx, detections=image_detections
             )
-            detections.append(detection)
+            batch_results.append(img_result)
+            total_detections_count += len(image_detections)
 
         return DetectionResponse(
             success=True,
-            detections=detections,
+            results=batch_results,
             processing_time=processing_time,
-            message=f"Detected {len(detections)} text regions",
+            message=f"Processed {len(detection_result)} images. Total {total_detections_count} text regions detected.",
         )
 
     except ValueError as e:

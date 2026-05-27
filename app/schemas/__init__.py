@@ -34,12 +34,26 @@ class TextDetection(BaseModel):
     confidence: float = Field(..., description="Detection confidence score")
 
 
+class ImageDetectionResult(BaseModel):
+    """Kết quả detection cho từng ảnh riêng biệt trong batch"""
+
+    image_index: int = Field(
+        ..., description="Chỉ số (index) của ảnh trong batch gửi lên"
+    )
+    detections: List[TextDetection] = Field(
+        default_list=[], description="Danh sách các vùng chữ tìm thấy trong ảnh này"
+    )
+
+
 class DetectionResponse(BaseModel):
-    """Detection API response."""
+    """Detection API response mới theo dạng Batch"""
 
     success: bool
-    detections: List[TextDetection]
-    processing_time: float = Field(..., description="Processing time in seconds")
+    # Thay đổi ở đây: Trả về List các kết quả theo từng ảnh
+    results: List[ImageDetectionResult]
+    processing_time: float = Field(
+        ..., description="Tổng thời gian xử lý tính bằng giây"
+    )
     message: Optional[str] = None
 
 

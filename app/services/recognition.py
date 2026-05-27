@@ -4,7 +4,7 @@ import logging
 import time
 import io
 import base64
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from PIL import Image
 
 import torch
@@ -88,8 +88,8 @@ class RecognitionService:
         cls,
         image_data: str,
         task_name: str = TaskNames.ocr_with_boxes,
-        batch_size: int = None,
-        max_tokens: int = None,
+        batch_size: Optional[int] = None,
+        max_tokens: Optional[int] = None,
         math_mode: bool = True,
     ) -> Tuple[List[TextLine], float]:
         """
@@ -111,6 +111,7 @@ class RecognitionService:
 
             # Load image
             image = cls.load_image_from_base64(image_data)
+            image_size = image.size
             logger.info(f"Image loaded: {image.size}")
 
             # Get recognizer
@@ -127,6 +128,9 @@ class RecognitionService:
             results = recognizer(
                 [image],
                 task_names=[task_name],
+                bboxes=[
+                    [[0, 0, int(image_size[0]), int(image_size[1])]]
+                ],  # Full image as bbox
                 recognition_batch_size=batch_size,
                 math_mode=math_mode,
                 max_tokens=max_tokens,
@@ -150,10 +154,10 @@ class RecognitionService:
     def recognize_with_bboxes(
         cls,
         image_data: str,
-        bboxes: List[List[List[int]]],
+        bboxes: List[List[int]],
         task_name: str = TaskNames.ocr_with_boxes,
-        batch_size: int = None,
-        max_tokens: int = None,
+        batch_size: Optional[int] = None,
+        max_tokens: Optional[int] = None,
     ) -> Tuple[List[TextLine], float]:
         """
         Recognize text from provided bounding boxes.

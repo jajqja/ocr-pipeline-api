@@ -109,8 +109,11 @@ Detect text regions in an image.
 **Request:**
 ```json
 {
-  "image_data": "base64_encoded_image",
-  "batch_size": null
+  "images_data": [
+    "base64_encoded_image_1...",
+    "base64_encoded_image_2..."
+  ],
+  "batch_size": 2
 }
 ```
 
@@ -118,15 +121,44 @@ Detect text regions in an image.
 ```json
 {
   "success": true,
-  "detections": [
+  "results": [
     {
-      "bbox": {"x1": 10, "y1": 20, "x2": 100, "y2": 50},
-      "polygon": {"points": [[10,20], [100,20], [100,50], [10,50]]},
-      "confidence": 0.95
+      "image_index": 0,
+      "detections": [
+        {
+          "bbox": {
+            "x1": 10.0,
+            "y1": 20.0,
+            "x2": 100.0,
+            "y2": 50.0
+          },
+          "polygon": {
+            "points": [[10, 20], [100, 20], [100, 50], [10, 50]]
+          },
+          "confidence": 0.95
+        }
+      ]
+    },
+    {
+      "image_index": 1,
+      "detections": [
+        {
+          "bbox": {
+            "x1": 120.0,
+            "y1": 30.0,
+            "x2": 200.0,
+            "y2": 60.0
+          },
+          "polygon": {
+            "points": [[120, 30], [200, 30], [200, 60], [120, 60]]
+          },
+          "confidence": 0.88
+        }
+      ]
     }
   ],
-  "processing_time": 1.23,
-  "message": "Detected 5 text regions"
+  "processing_time": 1.45,
+  "message": "Processed 2 images. Total 2 text regions detected."
 }
 ```
 

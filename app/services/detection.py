@@ -4,7 +4,7 @@ import logging
 import time
 import io
 import base64
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from PIL import Image
 
 import torch
@@ -78,7 +78,7 @@ class DetectionService:
     def detect(
         cls,
         image_data: str,
-        batch_size: int = None,
+        batch_size: Optional[int] = None,
     ) -> Tuple[TextDetectionResult, float]:
         """
         Detect text in image.
@@ -124,7 +124,7 @@ class DetectionService:
     def detect_batch(
         cls,
         images_data: List[str],
-        batch_size: int = None,
+        batch_size: Optional[int] = None,
     ) -> Tuple[List[TextDetectionResult], float]:
         """
         Detect text in multiple images.
@@ -166,23 +166,3 @@ class DetectionService:
         except Exception as e:
             logger.error(f"Batch detection error: {e}")
             raise
-
-
-# For backward compatibility
-class TextDetectionService:
-    """Legacy class - use DetectionService instead."""
-
-    def __init__(self, model_path: str = None) -> None:
-        self.model_path = model_path
-        self.device = DetectionService._detect_device()
-        self.model = DetectionService.get_predictor()
-        self._settings = get_settings()
-        logger.info(f"TextDetectionService initialized on device: {self.device}")
-
-    def _detect_device(self) -> str:
-        """Detect and return the best available device."""
-        return DetectionService._detect_device()
-
-    def _load_model(self):
-        """Load model."""
-        return DetectionService.get_predictor()
