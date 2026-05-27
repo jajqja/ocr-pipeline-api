@@ -26,9 +26,14 @@ ocr-pipeline-api/
 │   │   ├── __init__.py
 │   │   ├── detection.py            # Surya detection service
 │   │   ├── recognition.py          # Surya recognition service
-│   │   └── parer.py                # Combined parser service
+│   │   └── parser.py               # Combined parser service
 │   ├── schemas/
 │   │   └── __init__.py             # Pydantic models
+│   │   └── bbox.py      
+│   │   └── detection.py      
+│   │   └── health.py      
+│   │   └── regconition.py      
+│   │   └── parser.py      
 │   ├── core/
 │   │   ├── __init__.py
 │   │   ├── config.py               # Configuration management
@@ -38,7 +43,7 @@ ocr-pipeline-api/
 │   │   └── auth.py                 # Authentication utilities
 │   └── utils/
 │       └── __init__.py
-├── model_path/                      # Model storage directory
+├── model_path/                     # Model storage directory
 │   ├── text_detection/
 │   └── text_recognition/
 ├── examples/

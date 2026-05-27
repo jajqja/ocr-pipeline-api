@@ -238,12 +238,12 @@ Recognize text from specific bounding boxes.
 
 Recognize text directly from raw images without providing explicit spatial layouts or bounding boxes.
 
-[!WARNING]
+**SUPER WARNING**
 
 **Important Performance Note**: 
 - This standalone recognition model is highly specialized. It performs best only when the input images are cropped into single text lines or small text paragraphs.
 - If your input consists of full-page documents or large complex images, this endpoint is not recommended and will yield poor results. Instead, you should:
-  - Use the full document pipeline endpoint: `/api/v1/parse`
+  - Use the full document pipeline endpoint: `/api/v1/parser`
   - Or execute a two-step process: Pass the image to the Text Detection endpoint (`/api/v1/detection`) first to extract text bounding boxes, then feed those cropped coordinates into the Recognition with Bounding Boxes endpoint.
 
 ```bash
@@ -404,7 +404,7 @@ ocr-pipeline-api/
 │   ├── services/
 │   │   ├── detection.py     # Detection service (Surya)
 │   │   ├── recognition.py   # Recognition service (Surya)
-│   │   └── parer.py         # Parser service
+│   │   └── parser.py         # Parser service
 │   ├── schemas/
 │   │   └── __init__.py      # Pydantic models
 │   │   └── bbox.py      
