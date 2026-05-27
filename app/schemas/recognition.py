@@ -4,11 +4,22 @@ from pydantic import BaseModel, Field
 from app.schemas.bbox import TextLine
 
 
+class ImageRecognitionResult(BaseModel):
+    """Kết quả Text Recognition cho từng ảnh riêng biệt trong batch"""
+
+    image_index: int = Field(..., description="Chỉ số (index) của ảnh trong batch")
+    text_lines: List[TextLine] = Field(
+        default_factory=list,
+        description="Danh sách các dòng chữ nhận diện được trong ảnh này",
+    )
+
+
 class RecognitionResponse(BaseModel):
-    """Recognition API response."""
+    """Schema phản hồi tổng cho API Recognition dạng Batch"""
 
     success: bool
-    text_lines: List[TextLine]
-    full_text: str
-    processing_time: float = Field(..., description="Processing time in seconds")
+    results: List[ImageRecognitionResult] = Field(
+        ..., description="Danh sách kết quả theo từng ảnh"
+    )
+    processing_time: float = Field(..., description="Tổng thời gian xử lý batch (giây)")
     message: Optional[str] = None

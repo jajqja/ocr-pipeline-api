@@ -14,7 +14,8 @@ from surya.recognition import RecognitionPredictor
 from surya.common.surya.schema import TaskNames
 
 from app.core.config import get_settings
-from app.schemas import TextChar, TextLine
+from app.schemas.bbox import TextChar, TextLine, BBox
+from app.schemas.recognition import ImageRecognitionResult
 
 logger = logging.getLogger(__name__)
 
@@ -84,22 +85,20 @@ class RecognitionService:
             raise ValueError(f"Failed to load image: {e}")
 
     @classmethod
-    def recognize_from_image(
+    def recognize_from_images(
         cls,
         images_data: list[str],
         task_name: str = TaskNames.ocr_with_boxes,
         batch_size: Optional[int] = None,
-        max_tokens: Optional[int] = None,
         math_mode: bool = True,
-    ) -> Tuple[List[TextLine], float]:
+    ) -> Tuple[List[ImageRecognitionResult], float]:
         """
         Recognize text in image using full pipeline.
 
         Args:
-            image_data: Base64 encoded image data
+            images_data: List of ase64 encoded image data
             task_name: Task name (ocr_with_boxes, ocr_without_boxes, etc.)
             batch_size: Batch size for recognition
-            max_tokens: Maximum tokens for generation
             math_mode: Whether to enable math mode
 
         Returns:
@@ -113,7 +112,7 @@ class RecognitionService:
             images = [cls.load_image_from_base64(image) for image in images_data]
 
             bboxes = [[[0, 0, image.size[0], image.size[1]] for image in images]]
-            logger.info(f"Loaded {len(images)} images for recognition.")
+            logger.info(f"Loaded {len(images)} images")
 
             # Get recognizer
             recognizer = cls.get_recognition_predictor()
@@ -121,29 +120,40 @@ class RecognitionService:
             if batch_size is None:
                 batch_size = settings.BATCH_SIZE_RECOGNITION
 
-            if max_tokens is None:
-                max_tokens = settings.MAX_TOKENS
-
             # Run recognition
-            logger.info(f"Running recognition with task: {task_name}...")
+            logger.info(
+                f"Running batch recognition with {task_name} on {len(images)} images..."
+            )
             results = recognizer(
                 images,
-                task_names=[task_name],
                 bboxes=bboxes,
+                task_names=[task_name] * len(images),
                 recognition_batch_size=batch_size,
                 math_mode=math_mode,
-                max_tokens=max_tokens,
             )
 
             # Convert results to TextLine objects
-            text_lines = cls._convert_results(results[0])
+            batch_results = []
+            total_lines_count = 0
+
+            for img_idx, ocr_result in enumerate(results):
+                # Convert kết quả của ảnh hiện tại sang danh sách TextLine
+                text_lines = cls._convert_results(ocr_result)
+                total_lines_count += len(text_lines)
+
+                # Gom cụm theo Schema ImageRecognitionResult mới tạo
+                img_result = ImageRecognitionResult(
+                    image_index=img_idx, text_lines=text_lines
+                )
+                batch_results.append(img_result)
 
             processing_time = time.time() - start_time
             logger.info(
-                f"Recognition completed in {processing_time:.2f}s. Recognized {len(text_lines)} lines."
+                f"Batch recognition completed in {processing_time:.2f}s. "
+                f"Processed {len(images)} images, recognized total {total_lines_count} lines."
             )
 
-            return text_lines, processing_time
+            return batch_results, processing_time
 
         except Exception as e:
             logger.error(f"Recognition error: {e}")
@@ -223,7 +233,6 @@ class RecognitionService:
                     points = char.polygon
                     xs = [p[0] for p in points]
                     ys = [p[1] for p in points]
-                    from app.schemas import BBox
 
                     text_char.bbox = BBox(
                         x1=min(xs), y1=min(ys), x2=max(xs), y2=max(ys)
@@ -237,7 +246,6 @@ class RecognitionService:
                 points = line.polygon
                 xs = [p[0] for p in points]
                 ys = [p[1] for p in points]
-                from app.schemas import BBox
 
                 line_bbox = BBox(x1=min(xs), y1=min(ys), x2=max(xs), y2=max(ys))
 

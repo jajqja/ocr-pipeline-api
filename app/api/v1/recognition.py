@@ -49,7 +49,7 @@ async def recognize_text(request: RecognitionRequest):
         logger.info("Text recognition request received")
 
         # Run recognition
-        text_lines, processing_time = RecognitionService.recognize_from_image(
+        text_lines, processing_time = RecognitionService.recognize_from_images(
             image_data=request.image_data,
             task_name=request.task_name,
             batch_size=request.batch_size,
