@@ -7,8 +7,15 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.136.3",
     "pydantic>=2.13.4",
+    "pydantic-settings>=2.0.0",
     "surya-ocr==0.15.4",
     "uvicorn>=0.48.0",
+    "python-multipart>=0.0.6",
+    "Pillow>=10.0.0",
+    "numpy>=1.24.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "pytorch-cuda=11.8",
 ]
 
 [dependency-groups]
