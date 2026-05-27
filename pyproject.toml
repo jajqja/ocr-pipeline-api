@@ -1,0 +1,18 @@
+[project]
+name = "ocr-pipeline-api"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.136.3",
+    "pydantic>=2.13.4",
+    "surya-ocr==0.15.4",
+    "uvicorn>=0.48.0",
+]
+
+[dependency-groups]
+dev = [
+    "black>=26.5.1",
+    "pytest>=9.0.3",
+]
