@@ -113,8 +113,7 @@ ocr-pipeline-api/
 | `/api/v1/health` | GET | Health check | None | Status, GPU info |
 | `/api/v1/detection` | POST | Detect text | Base64 image | Bboxes, polygons, confidence |
 | `/api/v1/recognition` | POST | Recognize text | Base64 image | Text lines, full text |
-| `/api/v1/recognition/with-bboxes` | POST | Recognize regions | Image + bboxes | Text lines |
-| `/api/v1/parse` | POST | Full OCR pipeline | Base64 image | Detections + text |
+| `/api/v1/parsee` | POST | Full OCR pipeline | Base64 image | Detections + text |
 
 ## 🛠 Technology Stack
 
@@ -178,8 +177,6 @@ Key environment variables in `.env`:
 DEVICE=cuda                          # Device: cuda, cpu, or mps
 BATCH_SIZE_DETECTION=4              # Detection batch size
 BATCH_SIZE_RECOGNITION=8            # Recognition batch size
-MAX_TOKENS=500                       # Maximum generation tokens
-CONFIDENCE_THRESHOLD=0.3            # Detection confidence filter
 PORT=8000                            # API port
 ```
 

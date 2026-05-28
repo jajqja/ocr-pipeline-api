@@ -46,10 +46,8 @@ class Settings(BaseSettings):
     ]
 
     # Model inference settings
-    DETECTION_BATCH_SIZE: int = 4
-    RECOGNITION_BATCH_SIZE: int = 8
-    MAX_TOKENS: int = 500
-    CONFIDENCE_THRESHOLD: float = 0.3
+    DETECTION_BATCH_SIZE: int = 32
+    RECOGNITION_BATCH_SIZE: int = 256
 
 
 @lru_cache
