@@ -18,7 +18,6 @@ services:
       - PORT=8000
     volumes:
       - ./model_path:/app/model_path
-      - ./examples:/app/examples
     deploy:
       resources:
         reservations:
