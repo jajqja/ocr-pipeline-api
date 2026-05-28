@@ -53,21 +53,29 @@ async def lifespan(app: FastAPI):
 
     logger.info("=== [Lifespan] System has terminated safely ===")
 
+def create_app() -> FastAPI:
+    settings = get_settings()
+    
+    app = FastAPI(
+        title="Surya OCR Pipeline API",
+        description="High-performance Batch OCR API supporting Text Detection, Recognition, and Layout Parsing.",
+        version="1.0.0",
+        lifespan=lifespan,
+    )
+    
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    
+    from app.api.v1.router import api_router
+    
+    app.include_router(api_router)
 
-app = FastAPI(
-    title="Surya OCR Pipeline API",
-    description="High-performance Batch OCR API supporting Text Detection, Recognition, and Layout Parsing.",
-    version="1.0.0",
-    lifespan=lifespan,
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    return app
 
 
 @app.middleware("http")
@@ -87,19 +95,7 @@ async def root():
         "timestamp": time.time(),
     }
 
-
-app.include_router(
-    detection.router,
-    prefix="/api/v1",
-)
-app.include_router(
-    recognition.router,
-    prefix="/api/v1",
-)
-app.include_router(
-    parser.router,
-    prefix="/api/v1",
-)
+app = create_app()
 
 
 if __name__ == "__main__":
@@ -108,7 +104,7 @@ if __name__ == "__main__":
     logger.info("Launching Uvicorn ASGI server...")
     uvicorn.run(
         "main:app",
-        host="127.0.0.1",
-        port=8000,
+        host=settings.HOST,
+        port=settings.PORT,
         reload=True,  # Automatically refreshes code updates during development
     )
