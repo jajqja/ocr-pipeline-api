@@ -147,3 +147,35 @@ class ParserService:
         except Exception as e:
             logger.error(f"Parser error in pipeline: {e}")
             raise
+
+
+if __name__ == "__main__":
+    import base64
+    import os
+
+    def convert_image_to_base64(image_path: str) -> str:
+        """Converts a local image file to a base64 encoded string.
+
+        Args:
+            image_path (str): Path to the local image file.
+
+        Returns:
+            str: Base64 encoded string of the image.
+        """
+        if not os.path.exists(image_path):
+            raise FileNotFoundError(f"The image path does not exist: {image_path}")
+
+        with open(image_path, "rb") as image_file:
+            binary_data = image_file.read()
+
+            # 3. Mã hóa sang Base64 dạng bytes, sau đó .decode('utf-8') để chuyển thành chuỗi String
+            base64_encoded = base64.b64encode(binary_data).decode("utf-8")
+
+            return base64_encoded
+
+    base64_str = convert_image_to_base64("examples/001.png")
+    service = ParserService()
+
+    res = service.parse_document([base64_str])
+
+    print(res)

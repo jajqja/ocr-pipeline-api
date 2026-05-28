@@ -236,8 +236,6 @@ Once all checkboxes are checked, your OCR Pipeline API is ready for:
 
 1. **Check Documentation**
    - README.md - Main guide
-   - QUICKSTART.md - Quick reference
-   - API_TESTING.md - Testing examples
 
 2. **Check Logs**
    ```bash

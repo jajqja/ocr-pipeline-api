@@ -82,8 +82,13 @@ def test_text_recognition(client: httpx.Client, sample_images: List[str]):
         logger.info(f"Success: {res_data['success']}")
         logger.info(f"Processing Time: {res_data['processing_time']}s")
         for img_res in res_data["results"]:
+            lines = [line["text"] for line in img_res.get("text_lines", [])]
+
+            # Tự nối lại thành chuỗi văn bản hoàn chỉnh để in ra log
+            compiled_full_text = "\n".join(lines)
+
             logger.info(
-                f"Image Index {img_res['image_index']} -> Full Text: {repr(img_res['full_text'])}"
+                f"Image Index {img_res['image_index']} -> Recognized Text:\n{compiled_full_text}"
             )
     else:
         logger.error(f"Failed: {response.text}")
@@ -119,9 +124,7 @@ def test_full_pipeline_parser(client: httpx.Client, sample_images: List[str]):
             logger.info(
                 f"Image {img_res['image_index']} -> Extracted Text: {repr(img_res['full_text'])}"
             )
-            logger.info(
-                f"Avg Det Conf: {img_res['avg_det_confidence']:.2f} | Avg Rec Conf: {img_res['avg_reg_confidence']:.2f}"
-            )
+
     else:
         logger.error(f"Failed: {response.text}")
 

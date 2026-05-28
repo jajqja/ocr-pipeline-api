@@ -89,13 +89,16 @@ async def root():
 
 
 app.include_router(
-    detection.router, prefix="/api/v1/detection", tags=["1. Text Detection"]
+    detection.router,
+    prefix="/api/v1",
 )
 app.include_router(
-    recognition.router, prefix="/api/v1/recognition", tags=["2. Text Recognition"]
+    recognition.router,
+    prefix="/api/v1",
 )
 app.include_router(
-    parser.router, prefix="/api/v1/parser", tags=["3. Full Document Parser"]
+    parser.router,
+    prefix="/api/v1",
 )
 
 

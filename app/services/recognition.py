@@ -205,3 +205,34 @@ class RecognitionService:
             text_lines.append(text_line)
 
         return text_lines
+
+
+if __name__ == "__main__":
+    import base64
+    import os
+
+    def convert_image_to_base64(image_path: str) -> str:
+        """Converts a local image file to a base64 encoded string.
+
+        Args:
+            image_path (str): Path to the local image file.
+
+        Returns:
+            str: Base64 encoded string of the image.
+        """
+        if not os.path.exists(image_path):
+            raise FileNotFoundError(f"The image path does not exist: {image_path}")
+
+        with open(image_path, "rb") as image_file:
+            binary_data = image_file.read()
+
+            base64_encoded = base64.b64encode(binary_data).decode("utf-8")
+
+            return base64_encoded
+
+    base64_str = convert_image_to_base64("examples/002.png")
+    service = RecognitionService()
+
+    res = service.recognize([base64_str], max_tokens=1024)
+
+    print(res)
