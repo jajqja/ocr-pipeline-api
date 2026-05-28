@@ -10,10 +10,8 @@ services:
       - "8000:8000"
     environment:
       - DEVICE=cuda
-      - BATCH_SIZE_DETECTION=4
-      - BATCH_SIZE_RECOGNITION=8
-      - MAX_TOKENS=500
-      - CONFIDENCE_THRESHOLD=0.3
+      - BATCH_SIZE_DETECTION=32
+      - BATCH_SIZE_RECOGNITION=128
       - HOST=0.0.0.0
       - PORT=8000
     volumes:
