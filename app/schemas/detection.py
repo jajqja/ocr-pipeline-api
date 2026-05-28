@@ -8,7 +8,7 @@ class TextDetection(BaseModel):
     """Text detection result."""
 
     bbox: BBox
-    polygon: Optional[Polygon] = None
+    polygon: Polygon
     confidence: float = Field(..., description="Detection confidence score")
 
 
@@ -34,7 +34,8 @@ class DetectionResponse(BaseModel):
 
 
 class DetectionRequest(BaseModel):
-    """Detection request model."""
-
-    images_data: List[str] = Field(..., description="Base64 encoded image data")
+    images_data: List[str]
     batch_size: Optional[int] = None
+    padding: int = Field(default=0, description="Số pixel muốn mở rộng ra các phía cho bboxes")
+    detector_text_threshold: Optional[float] = None
+    detector_blank_threshold: Optional[float] = None

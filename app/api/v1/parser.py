@@ -1,70 +1,46 @@
 """Full OCR parser API endpoints."""
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import Optional
 
-from app.schemas.parser import ParserResponse
+from app.schemas.parser import ParserRequest, DocumentParserBatchResponse
 from app.services.parser import ParserService
 from app.core.logger import get_logger
-from surya.common.surya.schema import TaskNames
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/parser", tags=["parser"])
 
 
-class ParserRequest(BaseModel):
-    """Parser request model."""
-
-    image_data: str
-    task_name: str = TaskNames.ocr_with_boxes
-    detect_batch_size: Optional[int] = None
-    recognize_batch_size: Optional[int] = None
-    max_tokens: Optional[int] = None
-    math_mode: bool = True
-    confidence_threshold: Optional[float] = None
-
-
-@router.post("", response_model=ParserResponse)
-async def parse_document(request: ParserRequest):
+@router.post("", response_model=DocumentParserBatchResponse)
+async def parse_document_endpoint(request: ParserRequest):
     """
-    Run full OCR pipeline: detection + recognition.
-
-    Args:
-        request: Parser request with base64 encoded image
-
-    Returns:
-        ParserResponse with detections, text lines, and full text
+    Execute full Document Parsing Pipeline (Batch Detection + Batch Recognition).
     """
     try:
-        logger.info("Full OCR parse request received")
+        logger.info(f"Full pipeline request received for batch size: {len(request.images_data)}")
 
-        # Run full pipeline
-        detections, text_lines, full_text, processing_time = (
-            ParserService.parse_document(
-                image_data=request.image_data,
-                task_name=request.task_name,
-                detect_batch_size=request.detect_batch_size,
-                recognize_batch_size=request.recognize_batch_size,
-                max_tokens=request.max_tokens,
-                math_mode=request.math_mode,
-                confidence_threshold=request.confidence_threshold,
-            )
+        batch_results, processing_time = ParserService.parse_document(
+            images_data=request.images_data,
+            task_name=request.task_name,
+            detect_batch_size=request.detect_batch_size,
+            recognize_batch_size=request.recognize_batch_size,
+            max_tokens=request.max_tokens,
+            math_mode=request.math_mode,
+            padding=request.padding,
+            detector_text_threshold=request.detector_text_threshold,
+            detector_blank_threshold=request.detector_blank_threshold
         )
 
-        return ParserResponse(
+        return DocumentParserBatchResponse(
             success=True,
-            detections=detections,
-            text_lines=text_lines,
-            full_text=full_text,
+            results=batch_results,
             processing_time=processing_time,
-            message=f"Detected {len(detections)} regions and recognized {len(text_lines)} lines",
+            message=f"Successfully parsed {len(batch_results)} documents.",
         )
 
     except ValueError as e:
-        logger.error(f"Invalid input: {e}")
+        logger.error(f"Invalid input configuration: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Parser error: {e}")
+        logger.error(f"Pipeline execution error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

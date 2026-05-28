@@ -36,5 +36,5 @@ class RecognitionResponse(BaseModel):
     results: List[ImageRecognitionResult] = Field(
         ..., description="Danh sách kết quả theo từng ảnh"
     )
-    processing_time: float = Field(..., description="Tổng thời gian xử lý batch (giây)")
+    processing_time: float = Field(..., description="Processing time in seconds")
     message: Optional[str] = None

@@ -4,16 +4,15 @@ import logging
 import time
 import io
 import base64
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from PIL import Image
 
 import torch
 
 from surya.common.surya.schema import TaskNames
 
-from app.core.config import get_settings
-from app.schemas.bbox import TextLine, BBox, Polygon
-from app.schemas.detection import TextDetection
+from app.schemas.parser import ImageParserResult, ParserResultItem
+
 from app.services.detection import DetectionService
 from app.services.recognition import RecognitionService
 
@@ -53,166 +52,92 @@ class ParserService:
     @classmethod
     def parse_document(
         cls,
-        image_data: str,
-        task_name: str = TaskNames.ocr_with_boxes,
-        detect_batch_size: int = None,
-        recognize_batch_size: int = None,
-        max_tokens: int = None,
-        math_mode: bool = True,
-        confidence_threshold: float = None,
-    ) -> Tuple[List[TextDetection], List[TextLine], str, float]:
-        """
-        Run full OCR pipeline: detection + recognition.
-
-        Args:
-            image_data: Base64 encoded image
-            task_name: OCR task name
-            detect_batch_size: Batch size for detection
-            recognize_batch_size: Batch size for recognition
-            max_tokens: Maximum tokens for generation
-            math_mode: Enable math mode
-            confidence_threshold: Filter detections by confidence
-
-        Returns:
-            Tuple of (detections, text_lines, full_text, processing_time)
-        """
-        try:
-            start_time = time.time()
-            settings = get_settings()
-
-            if confidence_threshold is None:
-                confidence_threshold = settings.CONFIDENCE_THRESHOLD
-
-            if detect_batch_size is None:
-                detect_batch_size = settings.BATCH_SIZE_DETECTION
-
-            if recognize_batch_size is None:
-                recognize_batch_size = settings.BATCH_SIZE_RECOGNITION
-
-            if max_tokens is None:
-                max_tokens = settings.MAX_TOKENS
-
-            # Load image
-            image = cls.load_image_from_base64(image_data)
-            logger.info(f"Starting full OCR pipeline on image: {image.size}")
-
-            # Step 1: Detection
-            logger.info("Step 1: Running text detection...")
-            detection_result, det_time = DetectionService.detect(
-                image_data, batch_size=detect_batch_size
-            )
-
-            detections = []
-            for bbox_obj in detection_result.bboxes:
-                if bbox_obj.confidence >= confidence_threshold:
-                    # Convert polygon to BBox
-                    polygon = bbox_obj.polygon
-                    xs = [p[0] for p in polygon]
-                    ys = [p[1] for p in polygon]
-
-                    detection = TextDetection(
-                        bbox=BBox(
-                            x1=float(min(xs)),
-                            y1=float(min(ys)),
-                            x2=float(max(xs)),
-                            y2=float(max(ys)),
-                        ),
-                        polygon=Polygon(points=polygon),
-                        confidence=float(bbox_obj.confidence),
-                    )
-                    detections.append(detection)
-
-            logger.info(f"Detected {len(detections)} text regions")
-
-            # Step 2: Recognition
-            logger.info("Step 2: Running text recognition...")
-            bboxes = [
-                [int(d.bbox.x1), int(d.bbox.y1), int(d.bbox.x2), int(d.bbox.y2)]
-                for d in detections
-            ]
-
-            if bboxes:
-                text_lines, rec_time = RecognitionService.recognize_with_bboxes(
-                    image_data,
-                    bboxes=bboxes,
-                    task_name=task_name,
-                    batch_size=recognize_batch_size,
-                    max_tokens=max_tokens,
-                )
-            else:
-                # No detections, try to recognize full image
-                logger.warning(
-                    "No detections found. Attempting full image recognition..."
-                )
-                text_lines, rec_time = RecognitionService.recognize_from_image(
-                    image_data,
-                    task_name=task_name,
-                    batch_size=recognize_batch_size,
-                    max_tokens=max_tokens,
-                    math_mode=math_mode,
-                )
-
-            # Combine text
-            full_text = "\n".join([line.text for line in text_lines])
-
-            processing_time = time.time() - start_time
-            logger.info(f"Full pipeline completed in {processing_time:.2f}s")
-
-            return detections, text_lines, full_text, processing_time
-
-        except Exception as e:
-            logger.error(f"Parser error: {e}")
-            raise
-
-    @classmethod
-    def parse_document_batch(
-        cls,
         images_data: List[str],
         task_name: str = TaskNames.ocr_with_boxes,
-        detect_batch_size: int = None,
-        recognize_batch_size: int = None,
-        max_tokens: int = None,
+        detect_batch_size: Optional[int] = None,
+        recognize_batch_size: Optional[int] = None,
+        max_tokens: Optional[int] = None,
         math_mode: bool = True,
-    ) -> Tuple[List[Tuple[List[TextDetection], List[TextLine], str]], float]:
+        padding: int = 0,
+        detector_text_threshold: Optional[float] = None,
+        detector_blank_threshold: Optional[float] = None,
+    ) -> Tuple[List[ImageParserResult], float]:
         """
-        Run full OCR pipeline on multiple documents.
-
-        Args:
-            images_data: List of base64 encoded images
-            task_name: OCR task name
-            detect_batch_size: Batch size for detection
-            recognize_batch_size: Batch size for recognition
-            max_tokens: Maximum tokens
-            math_mode: Enable math mode
-
-        Returns:
-            Tuple of (results list, total processing time)
+        Run full OCR pipeline (Batch Mode): detection + recognition with box padding.
         """
         try:
             start_time = time.time()
-            results = []
+            
+            logger.info(f"Step 1: Running text detection on {len(images_data)} images...")
+            detection_results, _ = DetectionService.detect_batch(
+                images_data=images_data,
+                batch_size=detect_batch_size,
+                padding=padding,
+                detector_text_threshold=detector_text_threshold,
+                detector_blank_threshold=detector_blank_threshold
+            )
 
-            logger.info(f"Starting batch OCR pipeline on {len(images_data)} documents")
+            recognition_bboxes: List[List[List[int]]] = []
+            
+            for img_det in detection_results:
+                img_boxes = []
+                for det in img_det.detections:
+                    img_boxes.append([
+                        int(det.bbox.x1),
+                        int(det.bbox.y1),
+                        int(det.bbox.x2),
+                        int(det.bbox.y2)
+                    ])
+                recognition_bboxes.append(img_boxes)
 
-            for idx, image_data in enumerate(images_data):
-                logger.info(f"Processing document {idx + 1}/{len(images_data)}")
+            logger.info("Step 2: Running text recognition on detected bounding boxes...")
+            recognition_results, _ = RecognitionService.recognize(
+                images_data=images_data,
+                bboxes=recognition_bboxes, # Truyền mảng 3D chuẩn chỉ
+                task_name=task_name,
+                batch_size=recognize_batch_size,
+                max_tokens=max_tokens,
+                math_mode=math_mode,
+            )
 
-                detections, text_lines, full_text, _ = cls.parse_document(
-                    image_data,
-                    task_name=task_name,
-                    detect_batch_size=detect_batch_size,
-                    recognize_batch_size=recognize_batch_size,
-                    max_tokens=max_tokens,
-                    math_mode=math_mode,
+            final_batch_results = []
+            total_lines_processed = 0
+
+            for img_idx in range(len(images_data)):
+                img_det_obj = detection_results[img_idx]
+                img_rec_obj = recognition_results[img_idx]
+
+                parsed_items = []
+                det_confidences = [d.confidence for d in img_det_obj.detections]
+                reg_confidences = [r.confidence for r in img_rec_obj.text_lines]
+
+                for det_item, rec_item in zip(img_det_obj.detections, img_rec_obj.text_lines):
+                    item = ParserResultItem(
+                        text=rec_item.text,
+                        bbox=det_item.bbox,
+                        polygon=det_item.polygon,
+                        confidence=rec_item.confidence
+                    )
+                    parsed_items.append(item)
+
+                full_text = "\n".join([item.text for item in parsed_items])
+
+                image_parser_result = ImageParserResult(
+                    image_index=img_idx,
+                    full_text=full_text,
+                    results=parsed_items
                 )
+                final_batch_results.append(image_parser_result)
+                total_lines_processed += len(parsed_items)
 
-                results.append((detections, text_lines, full_text))
+            processing_time = time.time() - start_time
+            logger.info(
+                f"Full pipeline completed in {processing_time:.2f}s. "
+                f"Processed {len(images_data)} images, parsed total {total_lines_processed} text items."
+            )
 
-            total_time = time.time() - start_time
-            logger.info(f"Batch pipeline completed in {total_time:.2f}s")
-
-            return results, total_time
+            return final_batch_results, processing_time
 
         except Exception as e:
-            logger.error(f"Batch parser error: {e}")
+            logger.error(f"Parser error in pipeline: {e}")
             raise

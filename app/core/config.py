@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     # File upload settings
     MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
 
+    API_KEY: str | None = None
+
     # Allowed MIME types for image upload
     ALLOWED_MIME_TYPES: list[str] = [
         "image/jpeg",

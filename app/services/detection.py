@@ -10,7 +10,8 @@ from PIL import Image
 import torch
 
 from surya.detection import DetectionPredictor
-from surya.detection.schema import TextDetectionResult
+from schemas.detection import ImageDetectionResult, TextDetection
+from schemas.bbox import BBox, Polygon
 
 from app.core.config import get_settings
 
@@ -75,70 +76,20 @@ class DetectionService:
             raise ValueError(f"Failed to load image: {e}")
 
     @classmethod
-    def detect(
-        cls,
-        image_data: str,
-        batch_size: Optional[int] = None,
-    ) -> Tuple[TextDetectionResult, float]:
-        """
-        Detect text in image.
-
-        Args:
-            image_data: Base64 encoded image data
-            batch_size: Batch size for detection
-
-        Returns:
-            Tuple of (detection result, processing time)
-        """
-        try:
-            start_time = time.time()
-            settings = get_settings()
-
-            # Load image
-            image = cls.load_image_from_base64(image_data)
-            logger.info(f"Image loaded: {image.size}")
-
-            # Get predictor
-            predictor = cls.get_predictor()
-
-            # Set batch size
-            if batch_size is None:
-                batch_size = settings.BATCH_SIZE_DETECTION
-
-            # Run detection
-            logger.info("Running detection...")
-            detections = predictor([image], batch_size=batch_size)
-
-            processing_time = time.time() - start_time
-            logger.info(
-                f"Detection completed in {processing_time:.2f}s. Found {len(detections[0].bboxes)} text regions."
-            )
-
-            return detections[0], processing_time
-
-        except Exception as e:
-            logger.error(f"Detection error: {e}")
-            raise
-
-    @classmethod
     def detect_batch(
         cls,
         images_data: List[str],
         batch_size: Optional[int] = None,
-    ) -> Tuple[List[TextDetectionResult], float]:
+        padding: int = 0,
+        detector_text_threshold: Optional[float] = None, 
+        detector_blank_threshold: Optional[float] = None,
+    ) -> Tuple[List[ImageDetectionResult], float]:
         """
-        Detect text in multiple images.
-
-        Args:
-            images_data: List of base64 encoded images
-            batch_size: Batch size for detection
-
-        Returns:
-            Tuple of (detection results list, processing time)
+        Detect text in multiple images and return structured results with optional padding.
         """
         try:
             start_time = time.time()
-            settings = get_settings()
+            app_settings = get_settings()
 
             # Load images
             images = [cls.load_image_from_base64(img_data) for img_data in images_data]
@@ -147,21 +98,83 @@ class DetectionService:
             # Get predictor
             predictor = cls.get_predictor()
 
-            # Set batch size
             if batch_size is None:
-                batch_size = settings.BATCH_SIZE_DETECTION
+                batch_size = app_settings.BATCH_SIZE_DETECTION
 
-            # Run detection
-            logger.info(f"Running batch detection on {len(images)} images...")
-            detections = predictor(images, batch_size=batch_size)
+            from surya.settings import settings as surya_settings
+            orig_text_threshold = surya_settings.DETECTOR_TEXT_THRESHOLD
+            orig_blank_threshold = surya_settings.DETECTOR_BLANK_THRESHOLD
+
+            try:
+                if detector_text_threshold is not None:
+                    surya_settings.DETECTOR_TEXT_THRESHOLD = detector_text_threshold
+                    logger.info(f"Temporary override DETECTOR_TEXT_THRESHOLD to {detector_text_threshold}")
+                
+                if detector_blank_threshold is not None:
+                    surya_settings.DETECTOR_BLANK_THRESHOLD = detector_blank_threshold
+                    logger.info(f"Temporary override DETECTOR_BLANK_THRESHOLD to {detector_blank_threshold}")
+
+                logger.info(f"Running batch detection on {len(images)} images...")
+                detections = predictor(images, batch_size=batch_size)
+
+            finally:
+                surya_settings.DETECTOR_TEXT_THRESHOLD = orig_text_threshold
+                surya_settings.DETECTOR_BLANK_THRESHOLD = orig_blank_threshold
+
+            batch_results = []
+            total_detections_count = 0
+
+            for img_idx, detection in enumerate(detections):
+                image_detections = []
+                img_w, img_h = images[img_idx].size
+
+                for bbox_obj in detection.bboxes:
+                    polygon = bbox_obj.polygon
+                    xs = [p[0] for p in polygon]
+                    ys = [p[1] for p in polygon]
+
+                    x1_raw = min(xs)
+                    y1_raw = min(ys)
+                    x2_raw = max(xs)
+                    y2_raw = max(ys)
+
+                    x1_padded = max(0, x1_raw - padding)
+                    y1_padded = max(0, y1_raw - padding)
+                    x2_padded = min(img_w, x2_raw + padding)
+                    y2_padded = min(img_h, y2_raw + padding)
+
+                    padded_polygon = [
+                        [x1_padded, y1_padded],
+                        [x2_padded, y1_padded],
+                        [x2_padded, y2_padded],
+                        [x1_padded, y2_padded]
+                    ]
+
+                    text_detection = TextDetection(
+                        bbox=BBox(
+                            x1=float(x1_padded),
+                            y1=float(y1_padded),
+                            x2=float(x2_padded),
+                            y2=float(y2_padded),
+                        ),
+                        polygon=Polygon(points=padded_polygon),
+                        confidence=bbox_obj.confidence,
+                    )
+                    image_detections.append(text_detection)
+
+                img_result = ImageDetectionResult(
+                    image_index=img_idx, detections=image_detections
+                )
+                batch_results.append(img_result)
+                total_detections_count += len(image_detections)
 
             processing_time = time.time() - start_time
-            total_boxes = sum(len(det.bboxes) for det in detections)
             logger.info(
-                f"Batch detection completed in {processing_time:.2f}s. Found {total_boxes} text regions."
+                f"Batch detection completed in {processing_time:.2f}s. "
+                f"Processed {len(images)} images. Found {total_detections_count} text regions (with padding={padding}px)."
             )
 
-            return detections, processing_time
+            return batch_results, processing_time
 
         except Exception as e:
             logger.error(f"Batch detection error: {e}")
