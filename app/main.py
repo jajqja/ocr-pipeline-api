@@ -4,9 +4,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import detection, recognition, parser
 from app.services.detection import DetectionService
 from app.services.recognition import RecognitionService
+from app.core.config import get_settings
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -22,7 +22,6 @@ async def lifespan(app: FastAPI):
     """
     logger.info("=== [Lifespan] Initializing FastAPI Server ===")
     try:
-
         logger.info("[Lifespan] Pre-loading Text Detection model weights...")
         DetectionService.get_predictor()
 
@@ -53,16 +52,15 @@ async def lifespan(app: FastAPI):
 
     logger.info("=== [Lifespan] System has terminated safely ===")
 
+
 def create_app() -> FastAPI:
-    settings = get_settings()
-    
     app = FastAPI(
         title="Surya OCR Pipeline API",
         description="High-performance Batch OCR API supporting Text Detection, Recognition, and Layout Parsing.",
         version="1.0.0",
         lifespan=lifespan,
     )
-    
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -70,30 +68,30 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
+    @app.middleware("http")
+    async def add_process_time_header(request: Request, call_next):
+        start_time = time.time()
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        response.headers["X-Process-Time"] = f"{process_time:.4f}s"
+        return response
+
+    @app.get("/", tags=["Health Check"])
+    async def root():
+        return {
+            "status": "healthy",
+            "message": "Welcome to Surya OCR Pipeline API. System is running smoothly.",
+            "timestamp": time.time(),
+        }
+
+    # Đăng ký cụm API Routers
     from app.api.v1.router import api_router
-    
+
     app.include_router(api_router)
 
     return app
 
-
-@app.middleware("http")
-async def add_process_time_header(request: Request, call_next):
-    start_time = time.time()
-    response = await call_next(request)
-    process_time = time.time() - start_time
-    response.headers["X-Process-Time"] = f"{process_time:.4f}s"
-    return response
-
-
-@app.get("/", tags=["Health Check"])
-async def root():
-    return {
-        "status": "healthy",
-        "message": "Welcome to Surya OCR Pipeline API. System is running smoothly.",
-        "timestamp": time.time(),
-    }
 
 app = create_app()
 
@@ -101,10 +99,12 @@ app = create_app()
 if __name__ == "__main__":
     import uvicorn
 
+    settings = get_settings()
+
     logger.info("Launching Uvicorn ASGI server...")
     uvicorn.run(
         "main:app",
         host=settings.HOST,
         port=settings.PORT,
-        reload=True,  # Automatically refreshes code updates during development
+        reload=True,
     )

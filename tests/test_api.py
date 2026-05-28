@@ -5,15 +5,17 @@ from typing import List
 import httpx
 from PIL import Image, ImageDraw
 
+from app.core.config import get_settings
+
 # Cấu hình log để theo dõi tiến trình chạy test
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-BASE_URL = (
-    "http://127.0.0.1:8000/api/v1"  # Thay đổi URL và Port cho đúng với ứng dụng của bạn
-)
+settings = get_settings()
+
+BASE_URL = f"http://{settings.HOST}:{settings.PORT}/api/v1"  # Thay đổi URL và Port cho đúng với ứng dụng của bạn
 
 
 def generate_dummy_base64_image(text: str = "Test OCR") -> str:
