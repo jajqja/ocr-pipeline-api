@@ -1,6 +1,7 @@
 """Full OCR parser API endpoints."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from app.dependencies.auth import verify_api_key
 
 from app.schemas.parser import ParserRequest, DocumentParserBatchResponse
 from app.services.parser import ParserService
@@ -12,7 +13,10 @@ router = APIRouter(prefix="/parser", tags=["parser"])
 
 
 @router.post("", response_model=DocumentParserBatchResponse)
-async def parse_document_endpoint(request: ParserRequest):
+async def parse_document_endpoint(
+    request: ParserRequest,
+    _api_key: str | None = Depends(verify_api_key),
+):
     """
     Execute full Document Parsing Pipeline (Batch Detection + Batch Recognition).
     """

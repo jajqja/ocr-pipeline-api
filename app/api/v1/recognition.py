@@ -1,6 +1,7 @@
 """Text recognition API endpoints."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from app.dependencies.auth import verify_api_key
 
 from app.schemas.recognition import RecognitionResponse
 from app.services.recognition import RecognitionService
@@ -13,7 +14,10 @@ router = APIRouter(prefix="/recognition", tags=["recognition"])
 
 
 @router.post("", response_model=RecognitionResponse)
-async def recognize_text(request: RecognitionRequest):
+async def recognize_text(
+    request: RecognitionRequest,
+    _api_key: str | None = Depends(verify_api_key),
+):
     """
     Recognize text in a batch of images using full pipeline.
 

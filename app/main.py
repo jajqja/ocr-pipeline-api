@@ -1,28 +1,66 @@
-"""FastAPI OCR Pipeline Application."""
-
-from fastapi import FastAPI
+import logging
+import time
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
 
-from app.core.config import get_settings
-from app.core.logger import get_logger
-from app.api.router import router
+from app.api.v1 import detection, recognition, parser
+from app.services.detection import DetectionService
+from app.services.recognition import RecognitionService
 
-# Initialize settings and logger
-settings = get_settings()
-logger = get_logger(__name__)
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger("ocr_pipeline")
 
-# Create FastAPI app
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Manages the application lifecycle: Pre-loads deep learning weights
+    on startup and releases hardware resources safely on shutdown.
+    """
+    logger.info("=== [Lifespan] Initializing FastAPI Server ===")
+    try:
+
+        logger.info("[Lifespan] Pre-loading Text Detection model weights...")
+        DetectionService.get_predictor()
+
+        logger.info("[Lifespan] Pre-loading Text Recognition model weights...")
+        RecognitionService.get_recognition_predictor()
+
+        logger.info(
+            "=== [Lifespan] All AI models loaded successfully. Pipeline is ready! ==="
+        )
+    except Exception as e:
+        logger.critical(
+            f"[Lifespan] Critical error occurred while loading AI weights: {e}"
+        )
+
+    yield
+
+    logger.info("=== [Lifespan] Initiating FastAPI Server Shutdown ===")
+    logger.info("[Lifespan] Cleaning up resources and flushing AI runtime memory...")
+
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            logger.info("[Lifespan] CUDA memory cache successfully flushed.")
+    except ImportError:
+        pass
+
+    logger.info("=== [Lifespan] System has terminated safely ===")
+
+
 app = FastAPI(
-    title=settings.APP_NAME,
-    description="OCR Pipeline API using Surya for GPU-accelerated text detection and recognition",
-    version="0.1.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
+    title="Surya OCR Pipeline API",
+    description="High-performance Batch OCR API supporting Text Detection, Recognition, and Layout Parsing.",
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,40 +69,43 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API routes
-app.include_router(router)
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = f"{process_time:.4f}s"
+    return response
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Startup event handler."""
-    logger.info(f"Starting {settings.APP_NAME}")
-    logger.info(f"Device: {settings.DEVICE}")
-    logger.info(f"Detection batch size: {settings.BATCH_SIZE_DETECTION}")
-    logger.info(f"Recognition batch size: {settings.BATCH_SIZE_RECOGNITION}")
-
-
-@app.get("/")
+@app.get("/", tags=["Health Check"])
 async def root():
-    """Root endpoint."""
     return {
-        "message": f"Welcome to {settings.APP_NAME}",
-        "docs": "/api/docs",
-        "version": "0.1.0",
+        "status": "healthy",
+        "message": "Welcome to Surya OCR Pipeline API. System is running smoothly.",
+        "timestamp": time.time(),
     }
 
 
-@app.get("/version")
-async def version():
-    """Get API version."""
-    return {"version": "0.1.0"}
+app.include_router(
+    detection.router, prefix="/api/v1/detection", tags=["1. Text Detection"]
+)
+app.include_router(
+    recognition.router, prefix="/api/v1/recognition", tags=["2. Text Recognition"]
+)
+app.include_router(
+    parser.router, prefix="/api/v1/parser", tags=["3. Full Document Parser"]
+)
 
 
 if __name__ == "__main__":
+    import uvicorn
+
+    logger.info("Launching Uvicorn ASGI server...")
     uvicorn.run(
-        "app.main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.RELOAD,
-        log_level="info",
+        "main:app",
+        host="127.0.0.1",
+        port=8000,
+        reload=True,  # Automatically refreshes code updates during development
     )

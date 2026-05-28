@@ -1,28 +1,45 @@
-"""Authentication and security utilities."""
+"""API Key authentication dependency."""
 
-from typing import Optional
-from fastapi import Depends
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
+from fastapi import HTTPException, Security, status
+from fastapi.security import APIKeyHeader
 
-security = HTTPBearer(auto_error=False)
+from app.core.config import get_settings
+
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 async def verify_api_key(
-    credentials: Optional[HTTPAuthCredentials] = Depends(security),
-):
+    api_key: str | None = Security(api_key_header),
+) -> str | None:
     """
-    Verify API key from request.
+    Verify API key from X-API-Key header.
 
-    Can be used to protect endpoints:
-    @router.get("/protected", dependencies=[Depends(verify_api_key)])
+    If API_KEY is not configured, authentication is disabled.
+    If API_KEY is configured, the header must match.
+
+    Returns:
+        The API key if valid, None if auth is disabled.
+
+    Raises:
+        HTTPException: If API key is missing or invalid.
     """
-    # Implement your API key verification logic here
-    # For now, this is a placeholder
-    if credentials is None:
-        # Allow requests without API key for now
+    settings = get_settings()
+
+    # If API_KEY is not set, auth is disabled
+    if not settings.API_KEY:
         return None
 
-    api_key = credentials.credentials
-    # TODO: Verify API key against stored keys
+    # API_KEY is set, so we require authentication
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing API key. Provide X-API-Key header.",
+        )
+
+    if api_key != settings.API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid API key.",
+        )
 
     return api_key

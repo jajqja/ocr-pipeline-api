@@ -1,6 +1,7 @@
 """Text detection API endpoints."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from app.dependencies.auth import verify_api_key
 
 from app.schemas.detection import (
     DetectionResponse,
@@ -16,7 +17,10 @@ router = APIRouter(prefix="/detection", tags=["detection"])
 
 
 @router.post("", response_model=DetectionResponse)
-async def detect_batch_text(request: DetectionRequest):
+async def detect_batch_text(
+    request: DetectionRequest,
+    _api_key: str | None = Depends(verify_api_key),
+):
     """
     Detect text in batch of images with custom box padding extension.
     """
