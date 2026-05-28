@@ -25,19 +25,16 @@ A high-performance FastAPI-based OCR pipeline for GPU-accelerated text detection
 ```bash
 cd /home/jaqja/New_AI/ocr-pipeline-api
 
-# Create virtual environment (if not already done)
-python3.11 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# Using uv for installing dependencies
+uv sync
 
-# Install dependencies
-pip install -r pyproject.toml
-# or using uv if available
-uv pip install -e .
+# Activate environment
+source .venv/bin/activate
 ```
 
 ### 2. Download Models
 
-The API expects model files in the `model_path` directory. Surya will automatically download models on first run:
+The API expects model files in the `model_path` directory. Need to download from HuggingFace.
 
 ```bash
 mkdir -p model_path/text_detection
@@ -305,13 +302,18 @@ Run complete OCR pipeline (detection + recognition).
 **Request:**
 ```json
 {
-  "image_data": "base64_encoded_image",
+  "images_data": [
+    "base64_encoded_image_1...",
+    "base64_encoded_image_2..."
+  ],
   "task_name": "ocr_with_boxes",
   "detect_batch_size": null,
   "recognize_batch_size": null,
   "max_tokens": 500,
   "math_mode": true,
-  "confidence_threshold": 0.3
+  "padding": 2,
+  "detector_text_threshold": null,
+  "detector_blank_threshold": null
 }
 ```
 
@@ -319,11 +321,42 @@ Run complete OCR pipeline (detection + recognition).
 ```json
 {
   "success": true,
-  "detections": [...],
-  "text_lines": [...],
-  "full_text": "Recognized text from detected regions",
+  "results": [
+    {
+      "image_index": 0,
+      "full_text": "First Layout Block Text\nSecond Layout Block Text",
+      "results": [
+        {
+          "text": "First Layout Block Text",
+          "confidence": 0.93,
+          "bbox": {
+            "x1": 12.0,
+            "y1": 18.0,
+            "x2": 198.0,
+            "y2": 48.0
+          },
+          "polygon": {
+            "points": [[12, 18], [198, 18], [198, 48], [12, 48]]
+          }
+        },
+        {
+          "text": "Second Layout Block Text",
+          "confidence": 0.89,
+          "bbox": {
+            "x1": 12.0,
+            "y1": 58.0,
+            "x2": 210.0,
+            "y2": 88.0
+          },
+          "polygon": {
+            "points": [[12, 58], [210, 58], [210, 88], [12, 88]]
+          }
+        }
+      ]
+    }
+  ],
   "processing_time": 3.67,
-  "message": "Detected 5 regions and recognized 3 lines"
+  "message": "Successfully parsed 1 documents."
 }
 ```
 
@@ -361,7 +394,7 @@ IMAGE_BASE64=$(base64 -w0 document.png)
 # Call API
 curl -X POST http://localhost:8000/api/v1/parser \
   -H "Content-Type: application/json" \
-  -d "{\"image_data\": \"$IMAGE_BASE64\", \"task_name\": \"ocr_with_boxes\"}"
+  -d "{\"image_data\": \"$IMAGE_BASE64\"}"
 ```
 
 ### Using test script
