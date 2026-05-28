@@ -55,10 +55,8 @@ cp .env.example .env
 Key environment variables:
 
 - `DEVICE`: cuda, cpu, or mps (default: cuda)
-- `BATCH_SIZE_DETECTION`: Batch size for text detection (default: 4)
-- `BATCH_SIZE_RECOGNITION`: Batch size for text recognition (default: 8)
-- `MAX_TOKENS`: Maximum tokens for text generation (default: 500)
-- `CONFIDENCE_THRESHOLD`: Minimum confidence for detections (default: 0.3)
+- `BATCH_SIZE_DETECTION`: Batch size for text detection (default: 32)
+- `BATCH_SIZE_RECOGNITION`: Batch size for text recognition (default: 128)
 - `PORT`: API port (default: 8000)
 
 ## Usage
@@ -361,7 +359,7 @@ print(result["full_text"])
 IMAGE_BASE64=$(base64 -w0 document.png)
 
 # Call API
-curl -X POST http://localhost:8000/api/v1/parse \
+curl -X POST http://localhost:8000/api/v1/parser \
   -H "Content-Type: application/json" \
   -d "{\"image_data\": \"$IMAGE_BASE64\", \"task_name\": \"ocr_with_boxes\"}"
 ```
@@ -369,7 +367,7 @@ curl -X POST http://localhost:8000/api/v1/parse \
 ### Using test script
 
 ```bash
-python examples/test_api.py
+python tests/test_api.py
 ```
 
 ## Docker Deployment
@@ -393,47 +391,39 @@ docker run --gpus all -p 8000:8000 \
 ```
 ocr-pipeline-api/
 ├── app/
-│   ├── main.py              # FastAPI application
+│   ├── main.py                # FastAPI application
 │   ├── api/
-│   │   ├── router.py        # Main API router
+│   │   ├── router.py          # Main API router
 │   │   └── v1/
-│   │       ├── detection.py # Detection endpoints
+│   │       ├── detection.py   # Detection endpoints
 │   │       ├── recognition.py # Recognition endpoints
-│   │       ├── parser.py    # Parser endpoints
-│   │       └── health.py    # Health check
+│   │       ├── parser.py      # Parser endpoints
+│   │       └── health.py      # Health check
 │   ├── services/
-│   │   ├── detection.py     # Detection service (Surya)
-│   │   ├── recognition.py   # Recognition service (Surya)
-│   │   └── parser.py         # Parser service
+│   │   ├── detection.py       # Detection service (Surya)
+│   │   ├── recognition.py     # Recognition service (Surya)
+│   │   └── parser.py          # Parser service
 │   ├── schemas/
-│   │   └── __init__.py      # Pydantic models
+│   │   └── __init__.py        # Pydantic models
 │   │   └── bbox.py      
 │   │   └── detection.py      
 │   │   └── health.py      
 │   │   └── regconition.py      
 │   │   └── parser.py      
 │   └── core/
-│       ├── config.py        # Configuration
-│       └── logger.py        # Logging setup
-├── model_path/              # Model directory
+│       ├── config.py          # Configuration
+│       └── logger.py          # Logging setup
+├── model_path/                # Model directory
 │   ├── text_detection/
 │   └── text_recognition/
 ├── examples/
-│   └── test_api.py          # Example usage
-├── pyproject.toml           # Dependencies
-├── Dockerfile               # Docker configuration
-├── .env.example             # Environment template
-└── README.md                # This file
+├── tests/
+│   └── test_api.py            # Test api
+├── pyproject.toml             # Dependencies
+├── Dockerfile                 # Docker configuration
+├── .env.example               # Environment template
+└── README.md                  # This file
 ```
-
-## Available Tasks
-
-The recognition API supports multiple OCR tasks from Surya:
-
-- `ocr_with_boxes`: Full OCR with bounding boxes
-- `ocr_without_boxes`: OCR without detailed position info
-- `block_without_boxes`: Document structure analysis
-- `layout`: Page layout analysis
 
 ## Performance Tips
 
@@ -477,12 +467,6 @@ python -c "import torch; print(torch.cuda.get_device_name(0))"
 1. Check if GPU is being used: `nvidia-smi`
 2. Increase batch size
 3. Use production mode (multiple workers)
-
-## API Limits
-
-- **Max file size**: 100MB (configurable)
-- **Max tokens**: 500 (configurable)
-- **Supported formats**: JPEG, PNG, GIF, BMP, WebP
 
 ## Contributing
 
