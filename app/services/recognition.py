@@ -6,6 +6,7 @@ import io
 import base64
 from typing import List, Tuple, Optional
 from PIL import Image
+import os
 
 import torch
 
@@ -51,6 +52,11 @@ class RecognitionService:
             if cls._device is None:
                 cls._device = settings.DEVICE or cls._detect_device()
             cls._model_path = settings.RECOGNITION_MODEL_PATH
+            if not os.path.exists(cls._model_path):
+                logger.error(
+                    f"Recognition model path does not exist: {cls._model_path}"
+                )
+                raise FileNotFoundError(f"Model does not exist at {cls._model_path}")
 
             cls._foundation_predictor = FoundationPredictor(
                 device=cls._device, checkpoint=cls._model_path

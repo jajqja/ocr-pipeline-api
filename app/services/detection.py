@@ -6,6 +6,7 @@ import io
 import base64
 from typing import List, Tuple, Optional
 from PIL import Image
+import os
 
 import torch
 
@@ -49,6 +50,10 @@ class DetectionService:
                 cls._device = settings.DEVICE or cls._detect_device()
 
             cls._model_path = settings.DETECTION_MODEL_PATH
+
+            if not os.path.exists(cls._model_path):
+                logger.error(f"Detection model path does not exist: {cls._model_path}")
+                raise FileNotFoundError(f"Model does not exist at {cls._model_path}")
 
             cls._predictor = DetectionPredictor(
                 device=cls._device, checkpoint=cls._model_path
