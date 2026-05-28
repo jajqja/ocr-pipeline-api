@@ -36,6 +36,8 @@ class DetectionResponse(BaseModel):
 class DetectionRequest(BaseModel):
     images_data: List[str]
     batch_size: Optional[int] = None
-    padding: int = Field(default=0, description="Số pixel muốn mở rộng ra các phía cho bboxes")
+    padding: int = Field(
+        default=0, description="Số pixel muốn mở rộng ra các phía cho bboxes"
+    )
     detector_text_threshold: Optional[float] = None
     detector_blank_threshold: Optional[float] = None

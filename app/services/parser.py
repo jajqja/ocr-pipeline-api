@@ -67,33 +67,39 @@ class ParserService:
         """
         try:
             start_time = time.time()
-            
-            logger.info(f"Step 1: Running text detection on {len(images_data)} images...")
+
+            logger.info(
+                f"Step 1: Running text detection on {len(images_data)} images..."
+            )
             detection_results, _ = DetectionService.detect_batch(
                 images_data=images_data,
                 batch_size=detect_batch_size,
                 padding=padding,
                 detector_text_threshold=detector_text_threshold,
-                detector_blank_threshold=detector_blank_threshold
+                detector_blank_threshold=detector_blank_threshold,
             )
 
             recognition_bboxes: List[List[List[int]]] = []
-            
+
             for img_det in detection_results:
                 img_boxes = []
                 for det in img_det.detections:
-                    img_boxes.append([
-                        int(det.bbox.x1),
-                        int(det.bbox.y1),
-                        int(det.bbox.x2),
-                        int(det.bbox.y2)
-                    ])
+                    img_boxes.append(
+                        [
+                            int(det.bbox.x1),
+                            int(det.bbox.y1),
+                            int(det.bbox.x2),
+                            int(det.bbox.y2),
+                        ]
+                    )
                 recognition_bboxes.append(img_boxes)
 
-            logger.info("Step 2: Running text recognition on detected bounding boxes...")
+            logger.info(
+                "Step 2: Running text recognition on detected bounding boxes..."
+            )
             recognition_results, _ = RecognitionService.recognize(
                 images_data=images_data,
-                bboxes=recognition_bboxes, # Truyền mảng 3D chuẩn chỉ
+                bboxes=recognition_bboxes,  # Truyền mảng 3D chuẩn chỉ
                 task_name=task_name,
                 batch_size=recognize_batch_size,
                 max_tokens=max_tokens,
@@ -108,24 +114,24 @@ class ParserService:
                 img_rec_obj = recognition_results[img_idx]
 
                 parsed_items = []
-                det_confidences = [d.confidence for d in img_det_obj.detections]
-                reg_confidences = [r.confidence for r in img_rec_obj.text_lines]
+                [d.confidence for d in img_det_obj.detections]
+                [r.confidence for r in img_rec_obj.text_lines]
 
-                for det_item, rec_item in zip(img_det_obj.detections, img_rec_obj.text_lines):
+                for det_item, rec_item in zip(
+                    img_det_obj.detections, img_rec_obj.text_lines
+                ):
                     item = ParserResultItem(
                         text=rec_item.text,
                         bbox=det_item.bbox,
                         polygon=det_item.polygon,
-                        confidence=rec_item.confidence
+                        confidence=rec_item.confidence,
                     )
                     parsed_items.append(item)
 
                 full_text = "\n".join([item.text for item in parsed_items])
 
                 image_parser_result = ImageParserResult(
-                    image_index=img_idx,
-                    full_text=full_text,
-                    results=parsed_items
+                    image_index=img_idx, full_text=full_text, results=parsed_items
                 )
                 final_batch_results.append(image_parser_result)
                 total_lines_processed += len(parsed_items)

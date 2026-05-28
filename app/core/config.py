@@ -27,27 +27,10 @@ class Settings(BaseSettings):
 
     # GPU/Device settings
     DEVICE: str = "cuda"  # "cuda" or "cpu"
-    BATCH_SIZE_DETECTION: int = 4
-    BATCH_SIZE_RECOGNITION: int = 8
-
-    # File upload settings
-    MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
+    BATCH_SIZE_DETECTION: int = 32
+    BATCH_SIZE_RECOGNITION: int = 128
 
     API_KEY: str | None = None
-
-    # Allowed MIME types for image upload
-    ALLOWED_MIME_TYPES: list[str] = [
-        "image/jpeg",
-        "image/png",
-        "image/jpg",
-        "image/gif",
-        "image/bmp",
-        "image/webp",
-    ]
-
-    # Model inference settings
-    DETECTION_BATCH_SIZE: int = 32
-    RECOGNITION_BATCH_SIZE: int = 256
 
 
 @lru_cache

@@ -81,7 +81,7 @@ class DetectionService:
         images_data: List[str],
         batch_size: Optional[int] = None,
         padding: int = 0,
-        detector_text_threshold: Optional[float] = None, 
+        detector_text_threshold: Optional[float] = None,
         detector_blank_threshold: Optional[float] = None,
     ) -> Tuple[List[ImageDetectionResult], float]:
         """
@@ -102,17 +102,22 @@ class DetectionService:
                 batch_size = app_settings.BATCH_SIZE_DETECTION
 
             from surya.settings import settings as surya_settings
+
             orig_text_threshold = surya_settings.DETECTOR_TEXT_THRESHOLD
             orig_blank_threshold = surya_settings.DETECTOR_BLANK_THRESHOLD
 
             try:
                 if detector_text_threshold is not None:
                     surya_settings.DETECTOR_TEXT_THRESHOLD = detector_text_threshold
-                    logger.info(f"Temporary override DETECTOR_TEXT_THRESHOLD to {detector_text_threshold}")
-                
+                    logger.info(
+                        f"Temporary override DETECTOR_TEXT_THRESHOLD to {detector_text_threshold}"
+                    )
+
                 if detector_blank_threshold is not None:
                     surya_settings.DETECTOR_BLANK_THRESHOLD = detector_blank_threshold
-                    logger.info(f"Temporary override DETECTOR_BLANK_THRESHOLD to {detector_blank_threshold}")
+                    logger.info(
+                        f"Temporary override DETECTOR_BLANK_THRESHOLD to {detector_blank_threshold}"
+                    )
 
                 logger.info(f"Running batch detection on {len(images)} images...")
                 detections = predictor(images, batch_size=batch_size)
@@ -147,7 +152,7 @@ class DetectionService:
                         [x1_padded, y1_padded],
                         [x2_padded, y1_padded],
                         [x2_padded, y2_padded],
-                        [x1_padded, y2_padded]
+                        [x1_padded, y2_padded],
                     ]
 
                     text_detection = TextDetection(

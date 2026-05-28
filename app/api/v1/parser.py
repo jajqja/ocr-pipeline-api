@@ -17,7 +17,9 @@ async def parse_document_endpoint(request: ParserRequest):
     Execute full Document Parsing Pipeline (Batch Detection + Batch Recognition).
     """
     try:
-        logger.info(f"Full pipeline request received for batch size: {len(request.images_data)}")
+        logger.info(
+            f"Full pipeline request received for batch size: {len(request.images_data)}"
+        )
 
         batch_results, processing_time = ParserService.parse_document(
             images_data=request.images_data,
@@ -28,7 +30,7 @@ async def parse_document_endpoint(request: ParserRequest):
             math_mode=request.math_mode,
             padding=request.padding,
             detector_text_threshold=request.detector_text_threshold,
-            detector_blank_threshold=request.detector_blank_threshold
+            detector_blank_threshold=request.detector_blank_threshold,
         )
 
         return DocumentParserBatchResponse(
