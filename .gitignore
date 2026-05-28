@@ -148,12 +148,5 @@ cython_debug/
 # Debug/development files
 debug/
 
-# Image files
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.webp
-
 # Model path
 model_path/
