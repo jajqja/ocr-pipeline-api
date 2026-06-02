@@ -62,10 +62,10 @@ Key environment variables:
 
 ```bash
 # Development mode
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # Production mode
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
 The API will be available at `http://localhost:8000`
@@ -403,22 +403,6 @@ curl -X POST http://localhost:8000/api/v1/parser \
 python tests/test_api.py
 ```
 
-## Docker Deployment
-
-### Build Image
-
-```bash
-docker build -t ocr-pipeline-api .
-```
-
-### Run Container
-
-```bash
-docker run --gpus all -p 8000:8000 \
-  -e DEVICE=cuda \
-  ocr-pipeline-api
-```
-
 ## Project Structure
 
 ```
@@ -473,8 +457,6 @@ ocr-pipeline-api/
 # Monitor GPU usage
 nvidia-smi -l 1  # Update every 1 second
 
-# Monitor API logs
-docker logs -f container_id
 ```
 
 ## Troubleshooting
