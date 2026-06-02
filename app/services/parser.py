@@ -148,6 +148,7 @@ class ParserService:
             logger.error(f"Parser error in pipeline: {e}")
             raise
 
+
 if __name__ == "__main__":
     import base64
     import os
@@ -176,4 +177,3 @@ if __name__ == "__main__":
     service = ParserService()
 
     res = service.parse_document([base64_str])
-
