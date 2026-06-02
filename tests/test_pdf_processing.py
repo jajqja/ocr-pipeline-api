@@ -43,6 +43,8 @@ from pdf2image import convert_from_path
 from reportlab.pdfgen import canvas
 from pypdf import PdfReader, PdfWriter
 from PIL import ImageDraw
+from reportlab.lib.colors import transparent
+
 
 # Add project root to Python path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -243,24 +245,85 @@ def main():
 
     return 0
 
-
 def _create_searchable_pdf(pdf_path: str, ocr_results, output_path: str) -> None:
-    """Create searchable PDF with OCR text embedded."""
+    """
+    Create searchable PDF with OCR text embedded.
+    ocr_results: List[ImageParserResult] hoặc đối tượng chứa danh sách ImageParserResult
+    """
+    logger.info(f"Processing {pdf_path}...")
+    
+    # Trích xuất list kết quả từ response nếu ocr_results là DocumentParserBatchResponse
+    if hasattr(ocr_results, 'results'):
+        pages_ocr = ocr_results.results
+    else:
+        pages_ocr = ocr_results
 
-    logger.info(f"   Processing {pdf_path}...")
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
 
     for page_num, page in enumerate(reader.pages):
+        # 1. Thêm trang gốc vào writer trước
         writer.add_page(page)
-        # Text is embedded in page metadata for searchability
-        if page_num < len(ocr_results):
-            full_text = ocr_results[page_num].full_text
-            # Store text in page metadata
-            writer.pages[page_num].extract_text = lambda: full_text
+        
+        if page_num >= len(pages_ocr):
+            continue
+            
+        page_ocr = pages_ocr[page_num]
+        if not page_ocr.results:
+            continue
 
+        # Lấy kích thước trang PDF thực tế (đơn vị: points, 1 inch = 72 points)
+        # Nếu OCR chạy bằng pixel, bạn cần scale tỷ lệ. Tạm thời lấy trực tiếp từ PDF:
+        page_width = float(page.mediabox.width)
+        page_height = float(page.mediabox.height)
+
+        # 2. Tạo một file PDF tạm thời chứa text ẩn bằng ReportLab
+        packet = io.BytesIO()
+        can = canvas.Canvas(packet, pagesize=(page_width, page_height))
+        
+        # Cấu hình text ẩn (chữ trong suốt)
+        can.setFillColor(transparent)
+        
+        for item in page_ocr.results:
+            text = item.text
+            # Giả định bbox có cấu trúc dạng list/tuple hoặc object có thuộc tính x_min, y_min...
+            # Ví dụ: bbox = [x_min, y_min, x_max, y_max] 
+            # Bạn hãy map lại cho đúng định dạng thực tế của class BBox của bạn nhé:
+            try:
+                x_min, y_min, x_max, y_max = item.bbox
+            except TypeError:
+                # Nếu bbox là object: item.bbox.x_min ...
+                x_min = item.bbox.x_min
+                y_min = item.bbox.y_min
+                x_max = item.bbox.x_max
+                y_max = item.bbox.y_max
+
+            # --- ĐẢO TRỤC Y (Chuyển từ Top-Left sang Bottom-Left của PDF) ---
+            # Lưu ý: Nếu OCR của bạn trả về pixel, bạn cần nhân thêm tỉ lệ (PDF_points / Image_pixels)
+            pdf_x = x_min
+            pdf_y = page_height - y_max  # Đảo trục y
+            
+            # Tính toán font_size tương đối dựa trên chiều cao bbox
+            box_height = y_max - y_min
+            font_size = max(int(box_height * 0.8), 1)
+            
+            # Vẽ text ẩn vào canvas
+            can.setFont("Arial", font_size)
+            can.drawString(pdf_x, pdf_y, text)
+
+        can.save()
+        packet.seek(0)
+        
+        # 3. Đọc lớp text ẩn vừa tạo và đè (merge) lên trang PDF gốc
+        text_pdf = PdfReader(packet)
+        if len(text_pdf.pages) > 0:
+            # Lấy trang hiện tại vừa add ở bước 1 ra để merge
+            writer.pages[page_num].merge_page(text_pdf.pages[0])
+
+    # 4. Xuất file cuối cùng
     with open(output_path, "wb") as f:
         writer.write(f)
+    logger.info(f"Saved searchable PDF to {output_path}")
 
 
 def _create_bbox_pdf(images: list, ocr_results, output_path: str) -> None:
@@ -302,47 +365,68 @@ def _create_bbox_pdf(images: list, ocr_results, output_path: str) -> None:
 
 def _create_ocr_text_pdf(images: list, ocr_results, output_path: str) -> None:
     """Create PDF with OCR results written on blank pages."""
-    from pypdf import PdfWriter, PdfReader
-    import io
+    
+    # Trích xuất list kết quả từ response nếu ocr_results là DocumentParserBatchResponse
+    if hasattr(ocr_results, 'results'):
+        pages_ocr = ocr_results.results
+    else:
+        pages_ocr = ocr_results
 
-    temp_pdfs = []
+    writer = PdfWriter()
 
     for page_idx, original_img in enumerate(images):
         logger.info(f"   Processing page {page_idx + 1}...")
 
+        # Lấy kích thước pixel của ảnh gốc
         page_width = original_img.width
         page_height = original_img.height
 
-        # Create a new PDF page with text
+        # Tạo buffer riêng cho từng trang
         pdf_buffer = io.BytesIO()
         c = canvas.Canvas(pdf_buffer, pagesize=(page_width, page_height))
 
-        # Set font
-        c.setFont("Helvetica", 10)
+        if page_idx < len(pages_ocr):
+            page_ocr = pages_ocr[page_idx]
+            
+            for item in page_ocr.results:
+                text = item.text
+                if not text.strip():
+                    continue
+                
+                # Giả định bbox chứa: x1 (trái), y1 (trên), x2 (phải), y2 (dưới)
+                x_min = item.bbox.x1
+                y_min = item.bbox.y1
+                x_max = item.bbox.x2
+                y_max = item.bbox.y2
 
-        # Write OCR results with their positions
-        if page_idx < len(ocr_results):
-            for item in ocr_results[page_idx].results:
-                # Get text position from bounding box
-                x_pos = item.bbox.x1
-                y_pos = page_height - item.bbox.y1  # Convert to PDF coordinates
+                # 1. Tính toán Font size linh hoạt theo chiều cao thực tế của bounding box
+                box_height = y_max - y_min
+                font_size = max(int(box_height * 0.8), 1)  # Nhân 0.8 để chữ nằm gọn trong box
 
-                # Draw text
-                c.drawString(x_pos, y_pos, item.text[:50])
+                # Sử dụng font mặc định "Helvetica" để tránh lỗi thiếu font Arial
+                c.setFont("Arial", font_size)
+
+                # 2. Chuyển đổi tọa độ hệ ảnh (Top-Left) sang hệ PDF (Bottom-Left)
+                # Dùng y_max (cạnh đáy của dòng chữ trong OCR) để làm gốc tọa độ cho đường chân chữ (Baseline) trong PDF
+                x_pos = x_min
+                y_pos = page_height - y_max 
+
+                # 3. Vẽ toàn bộ text (bỏ giới hạn [:50] để không bị mất chữ)
+                c.drawString(x_pos, y_pos, text)
 
         c.save()
-        temp_pdfs.append(pdf_buffer.getvalue())
+        pdf_buffer.seek(0)
 
-    # Merge all PDFs
-    if temp_pdfs:
-        merger = PdfWriter()
-        for pdf_data in temp_pdfs:
-            pdf_reader = PdfReader(io.BytesIO(pdf_data))
-            for page in pdf_reader.pages:
-                merger.add_page(page)
+        # Đọc trang vừa vẽ xong và add trực tiếp vào writer (Không cần mảng tạm temp_pdfs)
+        pdf_reader = PdfReader(pdf_buffer)
+        if len(pdf_reader.pages) > 0:
+            writer.add_page(pdf_reader.pages[0])
 
-        with open(output_path, "wb") as f:
-            merger.write(f)
+    # Ghi toàn bộ các trang ra file output duy nhất
+    with open(output_path, "wb") as f:
+        writer.write(f)
+        
+    logger.info(f"Successfully saved OCR PDF to {output_path}")
 
 
 if __name__ == "__main__":
