@@ -44,6 +44,8 @@ from reportlab.pdfgen import canvas
 from pypdf import PdfReader, PdfWriter
 from PIL import ImageDraw
 from reportlab.lib.colors import transparent
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 
 # Add project root to Python path
@@ -185,8 +187,8 @@ def main():
             detect_batch_size=detect_batch_size,
             recognize_batch_size=recognize_batch_size,
             padding=3,
-            detector_text_threshold=0.7,
-            detector_blank_threshold=0.45,
+            detector_text_threshold=0.6,
+            detector_blank_threshold=0.4,
         )
 
         logger.info(f"✓ OCR completed in {processing_time:.2f}s")
@@ -209,7 +211,7 @@ def main():
             # Output 1: Searchable PDF
             logger.info("\n1️⃣  Creating searchable PDF...")
             output_searchable = os.path.join(output_dir, "output_searchable.pdf")
-            _create_searchable_pdf(input_pdf, ocr_results, output_searchable)
+            _create_searchable_pdf(input_pdf, ocr_results, output_searchable, page_images)
             logger.info(f"   ✓ Saved: {output_searchable}")
 
             # Output 2: PDF with bounding boxes
@@ -245,14 +247,25 @@ def main():
 
     return 0
 
-def _create_searchable_pdf(pdf_path: str, ocr_results, output_path: str) -> None:
+def _create_searchable_pdf(
+    pdf_path: str, 
+    ocr_results, 
+    output_path: str, 
+    images: list,
+    font_path: str = "Arial.ttf"
+) -> None:
     """
-    Create searchable PDF with OCR text embedded.
-    ocr_results: List[ImageParserResult] hoặc đối tượng chứa danh sách ImageParserResult
+    Create searchable PDF with OCR text stretched perfectly to fill the entire bounding box.
     """
-    logger.info(f"Processing {pdf_path}...")
+    logger.info(f"Processing perfect-fit searchable PDF for {pdf_path}...")
     
-    # Trích xuất list kết quả từ response nếu ocr_results là DocumentParserBatchResponse
+    try:
+        pdfmetrics.registerFont(TTFont("Arial", font_path))
+        font_name = "Arial"
+    except Exception as e:
+        logger.warning(f"Không thể tải font Arial, dùng Helvetica: {e}")
+        font_name = "Helvetica"
+
     if hasattr(ocr_results, 'results'):
         pages_ocr = ocr_results.results
     else:
@@ -262,68 +275,79 @@ def _create_searchable_pdf(pdf_path: str, ocr_results, output_path: str) -> None
     writer = PdfWriter()
 
     for page_num, page in enumerate(reader.pages):
-        # 1. Thêm trang gốc vào writer trước
         writer.add_page(page)
         
-        if page_num >= len(pages_ocr):
+        if page_num >= len(pages_ocr) or page_num >= len(images):
             continue
             
         page_ocr = pages_ocr[page_num]
+        original_img = images[page_num]
+        
         if not page_ocr.results:
             continue
 
-        # Lấy kích thước trang PDF thực tế (đơn vị: points, 1 inch = 72 points)
-        # Nếu OCR chạy bằng pixel, bạn cần scale tỷ lệ. Tạm thời lấy trực tiếp từ PDF:
-        page_width = float(page.mediabox.width)
-        page_height = float(page.mediabox.height)
+        pdf_w = float(page.mediabox.width)
+        pdf_h = float(page.mediabox.height)
+        img_w = float(original_img.width)
+        img_h = float(original_img.height)
 
-        # 2. Tạo một file PDF tạm thời chứa text ẩn bằng ReportLab
+        scale_x = pdf_w / img_w
+        scale_y = pdf_h / img_h
+
         packet = io.BytesIO()
-        can = canvas.Canvas(packet, pagesize=(page_width, page_height))
-        
-        # Cấu hình text ẩn (chữ trong suốt)
-        can.setFillColor(transparent)
+        can = canvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
+        can.setFillColor(transparent) # Giữ chữ ẩn
         
         for item in page_ocr.results:
             text = item.text
-            # Giả định bbox có cấu trúc dạng list/tuple hoặc object có thuộc tính x_min, y_min...
-            # Ví dụ: bbox = [x_min, y_min, x_max, y_max] 
-            # Bạn hãy map lại cho đúng định dạng thực tế của class BBox của bạn nhé:
-            try:
-                x_min, y_min, x_max, y_max = item.bbox
-            except TypeError:
-                # Nếu bbox là object: item.bbox.x_min ...
-                x_min = item.bbox.x_min
-                y_min = item.bbox.y_min
-                x_max = item.bbox.x_max
-                y_max = item.bbox.y_max
+            if not text.strip():
+                continue
+                
+            x1 = item.bbox.x1 * scale_x
+            y1 = item.bbox.y1 * scale_y
+            x2 = item.bbox.x2 * scale_x
+            y2 = item.bbox.y2 * scale_y
 
-            # --- ĐẢO TRỤC Y (Chuyển từ Top-Left sang Bottom-Left của PDF) ---
-            # Lưu ý: Nếu OCR của bạn trả về pixel, bạn cần nhân thêm tỉ lệ (PDF_points / Image_pixels)
-            pdf_x = x_min
-            pdf_y = page_height - y_max  # Đảo trục y
+            box_width = x2 - x1
+            box_height = y2 - y1
             
-            # Tính toán font_size tương đối dựa trên chiều cao bbox
-            box_height = y_max - y_min
-            font_size = max(int(box_height * 0.8), 1)
+            # 1. Định dạng kích thước font theo độ cao box (khoảng 85% để bao quát tốt hơn)
+            font_size = max(box_height * 0.85, 1)
             
-            # Vẽ text ẩn vào canvas
-            can.setFont("Arial", font_size)
-            can.drawString(pdf_x, pdf_y, text)
+            # 2. Tạo một TextObject để kiểm soát nâng cao
+            text_obj = can.beginText()
+            text_obj.setFont(font_name, font_size)
+            
+            # Tính toán chiều rộng tự nhiên của chuỗi chữ này khi chưa co giãn
+            text_width = can.stringWidth(text, font_name, font_size)
+            
+            # 3. ÉP CO GIÃN CHIỀU RỘNG (Tỷ lệ phần trăm ngang)
+            if text_width > 0:
+                # Tính tỷ lệ phần trăm cần kéo dãn (Ví dụ: 100 nghĩa là giữ nguyên, 150 là dãn rộng ra 1.5 lần)
+                horizontal_scale = (box_width / text_width) * 100
+                text_obj.setHorizScale(horizontal_scale)
+
+            # Đặt tọa độ góc Bottom-Left cho chữ (bù trừ Baseline khoảng 15%)
+            pdf_x = x1
+            pdf_y = pdf_h - y2 + (box_height * 0.15)
+            
+            text_obj.setTextOrigin(pdf_x, pdf_y)
+            text_obj.textLine(text)
+            
+            # Vẽ TextObject này lên canvas
+            can.drawText(text_obj)
 
         can.save()
         packet.seek(0)
         
-        # 3. Đọc lớp text ẩn vừa tạo và đè (merge) lên trang PDF gốc
         text_pdf = PdfReader(packet)
         if len(text_pdf.pages) > 0:
-            # Lấy trang hiện tại vừa add ở bước 1 ra để merge
             writer.pages[page_num].merge_page(text_pdf.pages[0])
 
-    # 4. Xuất file cuối cùng
     with open(output_path, "wb") as f:
         writer.write(f)
-    logger.info(f"Saved searchable PDF to {output_path}")
+        
+    logger.info(f"Successfully saved stretched searchable PDF to {output_path}")
 
 
 def _create_bbox_pdf(images: list, ocr_results, output_path: str) -> None:
@@ -363,9 +387,22 @@ def _create_bbox_pdf(images: list, ocr_results, output_path: str) -> None:
         )
 
 
-def _create_ocr_text_pdf(images: list, ocr_results, output_path: str) -> None:
+def _create_ocr_text_pdf(
+    images: list, 
+    ocr_results, 
+    output_path: str, 
+    font_path: str = "Arial.ttf"  # Đường dẫn tới file ttf của bạn
+) -> None:
     """Create PDF with OCR results written on blank pages."""
     
+    # 1. ĐĂNG KÝ FONT ARIAL VỚI REPORTLAB
+    try:
+        pdfmetrics.registerFont(TTFont("Arial", font_path))
+        font_name = "Arial"
+    except Exception as e:
+        logger.warning(f"Không thể tải font Arial từ {font_path} ({e}). Tự động chuyển sang font Helvetica mặc định.")
+        font_name = "Helvetica"
+
     # Trích xuất list kết quả từ response nếu ocr_results là DocumentParserBatchResponse
     if hasattr(ocr_results, 'results'):
         pages_ocr = ocr_results.results
@@ -399,25 +436,24 @@ def _create_ocr_text_pdf(images: list, ocr_results, output_path: str) -> None:
                 x_max = item.bbox.x2
                 y_max = item.bbox.y2
 
-                # 1. Tính toán Font size linh hoạt theo chiều cao thực tế của bounding box
+                # Tính toán Font size linh hoạt theo chiều cao thực tế của bounding box
                 box_height = y_max - y_min
                 font_size = max(int(box_height * 0.8), 1)  # Nhân 0.8 để chữ nằm gọn trong box
 
-                # Sử dụng font mặc định "Helvetica" để tránh lỗi thiếu font Arial
-                c.setFont("Arial", font_size)
+                # 2. SỬ DỤNG FONT ĐÃ ĐĂNG KÝ THÀNH CÔNG
+                c.setFont(font_name, font_size)
 
-                # 2. Chuyển đổi tọa độ hệ ảnh (Top-Left) sang hệ PDF (Bottom-Left)
-                # Dùng y_max (cạnh đáy của dòng chữ trong OCR) để làm gốc tọa độ cho đường chân chữ (Baseline) trong PDF
+                # Chuyển đổi tọa độ hệ ảnh (Top-Left) sang hệ PDF (Bottom-Left)
                 x_pos = x_min
                 y_pos = page_height - y_max 
 
-                # 3. Vẽ toàn bộ text (bỏ giới hạn [:50] để không bị mất chữ)
+                # Vẽ toàn bộ text
                 c.drawString(x_pos, y_pos, text)
 
         c.save()
         pdf_buffer.seek(0)
 
-        # Đọc trang vừa vẽ xong và add trực tiếp vào writer (Không cần mảng tạm temp_pdfs)
+        # Đọc trang vừa vẽ xong và add trực tiếp vào writer
         pdf_reader = PdfReader(pdf_buffer)
         if len(pdf_reader.pages) > 0:
             writer.add_page(pdf_reader.pages[0])
