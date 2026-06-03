@@ -160,7 +160,7 @@ def main():
             base64_highres_images,
             detect_batch_size=detect_batch_size,
             recognize_batch_size=recognize_batch_size,
-            padding=1,
+            padding=0,
             detector_text_threshold=0.65,
             detector_blank_threshold=0.4,
         )

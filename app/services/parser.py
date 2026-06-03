@@ -127,7 +127,7 @@ class ParserService:
                 "Step 2: Running text recognition on detected bounding boxes..."
             )
             recognition_results, _ = RecognitionService.recognize(
-                images_data=images_data,
+                images_data=highres_images_data if highres_images_data else images_data,
                 bboxes=recognition_bboxes,  # Truyền mảng 3D chuẩn chỉ
                 task_name=task_name,
                 batch_size=recognize_batch_size,
