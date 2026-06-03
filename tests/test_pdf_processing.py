@@ -38,7 +38,6 @@ from pathlib import Path
 from app.services.parser import ParserService
 import base64
 import io
-from PIL import Image
 from pdf2image import convert_from_path
 from reportlab.pdfgen import canvas
 from pypdf import PdfReader, PdfWriter
@@ -71,12 +70,6 @@ def main():
         help="Path to input PDF file (e.g., examples/sample.pdf)",
     )
     parser.add_argument(
-        "--image_folder",
-        type=str,
-        default=None,
-        help="Path to folder containing images (e.g., examples/)",
-    )
-    parser.add_argument(
         "--output_dir",
         type=str,
         default="examples/output",
@@ -99,7 +92,6 @@ def main():
 
     # Configuration
     input_pdf = args.pdf_path
-    image_folder = args.image_folder
     output_dir = args.output_dir
     detect_batch_size = args.detect_batch_size
     recognize_batch_size = args.recognize_batch_size
@@ -111,48 +103,29 @@ def main():
     logger.info("PDF OCR Pipeline Test")
     logger.info("=" * 70)
 
-    # Step 1: Check if PDF exists or use image folder
-    if image_folder and os.path.isdir(image_folder):
-        logger.info(f"Loading images from folder: {image_folder}")
-
-        # Collect all image files
-        image_files = []
-        for ext in ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.tiff"]:
-            image_files.extend(sorted(Path(image_folder).glob(ext)))
-            image_files.extend(sorted(Path(image_folder).glob(ext.upper())))
-
-        if not image_files:
-            logger.error(f"No images found in {image_folder}")
-            return 1
-
-        logger.info(f"Found {len(image_files)} images")
-
-        # Convert images to base64
-        base64_images = []
-        for img_path in image_files:
-            logger.info(f"  Loading: {img_path.name}")
-            with open(img_path, "rb") as f:
-                b64 = base64.b64encode(f.read()).decode("utf-8")
-                base64_images.append(b64)
-
-        page_images = [Image.open(str(p)).convert("RGB") for p in image_files]
-        demo_mode = False
-
-    elif os.path.exists(input_pdf):
+    if os.path.exists(input_pdf):
         logger.info(f"Loading PDF: {input_pdf}")
         # Extract pages from PDF
         logger.info(f"Extracting pages from PDF: {input_pdf}")
-        page_images = convert_from_path(input_pdf, dpi=200)
+        page_images = convert_from_path(input_pdf, dpi=96)
+        highres_page_images = convert_from_path(input_pdf, dpi=192)
         logger.info(f"✓ Extracted {len(page_images)} pages")
 
         # Convert to base64
         base64_images = []
-        for page_img in page_images:
+        base64_highres_images = []
+        for page_img, highres_page_img in zip(page_images, highres_page_images):
             img_buffer = io.BytesIO()
             page_img.save(img_buffer, format="PNG")
             img_buffer.seek(0)
             b64 = base64.b64encode(img_buffer.getvalue()).decode("utf-8")
             base64_images.append(b64)
+
+            highres_buffer = io.BytesIO()
+            highres_page_img.save(highres_buffer, format="PNG")
+            highres_buffer.seek(0)
+            highres_b64 = base64.b64encode(highres_buffer.getvalue()).decode("utf-8")
+            base64_highres_images.append(highres_b64)
 
         demo_mode = False
     else:
@@ -162,6 +135,7 @@ def main():
         # Demo mode with sample images
         if os.path.exists("examples/001.png") and os.path.exists("examples/002.png"):
             base64_images = []
+            base64_highres_images = None
             for img_path in ["examples/001.png", "examples/002.png"]:
                 with open(img_path, "rb") as f:
                     b64 = base64.b64encode(f.read()).decode("utf-8")
@@ -183,6 +157,7 @@ def main():
         service = ParserService()
         ocr_results, processing_time = service.parse_document(
             base64_images,
+            base64_highres_images,
             detect_batch_size=detect_batch_size,
             recognize_batch_size=recognize_batch_size,
             padding=1,

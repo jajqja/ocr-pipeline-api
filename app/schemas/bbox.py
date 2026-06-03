@@ -24,18 +24,8 @@ class Polygon(BaseModel):
     points: List[List[float]] = Field(..., description="List of [x, y] coordinates")
 
 
-class TextChar(BaseModel):
-    """Single character with position."""
-
-    text: str
-    confidence: float
-    bbox: Optional[BBox] = None
-
-
 class TextLine(BaseModel):
     """Line of recognized text."""
 
     text: str
     confidence: float
-    chars: List[TextChar] = []
-    bbox: Optional[BBox] = None

@@ -15,7 +15,7 @@ from surya.recognition import RecognitionPredictor
 from surya.common.surya.schema import TaskNames
 
 from app.core.config import get_settings
-from app.schemas.bbox import TextChar, TextLine, BBox
+from app.schemas.bbox import TextLine
 from app.schemas.recognition import ImageRecognitionResult
 
 logger = logging.getLogger(__name__)
@@ -108,7 +108,7 @@ class RecognitionService:
             bboxes: List of bounding boxes for each image [[[x1,y1,x2,y2], ...], [...]]
             task_name: Task name (ocr_with_boxes, ocr_without_boxes, etc.)
             batch_size: Batch size for recognition
-            max_tokesn: Maximum tokens for generation (if applicable)
+            max_tokens: Maximum tokens for generation (if applicable)
             math_mode: Whether to enable math mode
 
         Returns:
@@ -175,38 +175,9 @@ class RecognitionService:
         text_lines = []
 
         for line in ocr_result.text_lines:
-            text_chars = []
-
-            for char in line.chars:
-                text_char = TextChar(
-                    text=char.text, confidence=char.confidence, bbox=None
-                )
-                if char.bbox_valid and char.polygon:
-                    # Convert polygon to bbox
-                    points = char.polygon
-                    xs = [p[0] for p in points]
-                    ys = [p[1] for p in points]
-
-                    text_char.bbox = BBox(
-                        x1=min(xs), y1=min(ys), x2=max(xs), y2=max(ys)
-                    )
-
-                text_chars.append(text_char)
-
-            # Convert polygon to bbox for line
-            line_bbox = None
-            if line.polygon:
-                points = line.polygon
-                xs = [p[0] for p in points]
-                ys = [p[1] for p in points]
-
-                line_bbox = BBox(x1=min(xs), y1=min(ys), x2=max(xs), y2=max(ys))
-
             text_line = TextLine(
                 text=line.text,
                 confidence=line.confidence,
-                chars=text_chars,
-                bbox=line_bbox,
             )
             text_lines.append(text_line)
 

@@ -50,9 +50,16 @@ class ParserService:
             raise ValueError(f"Failed to load image: {e}")
 
     @classmethod
+    def _get_image_dimensions(cls, img_str: str) -> Tuple[int, int]:
+        img_data = base64.b64decode(img_str)
+        with Image.open(io.BytesIO(img_data)) as img:
+            return img.size
+
+    @classmethod
     def parse_document(
         cls,
         images_data: List[str],
+        highres_images_data: Optional[List[str]] = None,
         task_name: str = TaskNames.ocr_with_boxes,
         detect_batch_size: Optional[int] = None,
         recognize_batch_size: Optional[int] = None,
@@ -81,17 +88,39 @@ class ParserService:
 
             recognition_bboxes: List[List[List[int]]] = []
 
-            for img_det in detection_results:
+            for idx, img_det in enumerate(detection_results):
                 img_boxes = []
+
+                # Mặc định tỉ lệ scale là 1.0 (không đổi)
+                scale_x = 1.0
+                scale_y = 1.0
+
+                # Check nếu có highres_images_data và khớp số lượng phần tử
+                if highres_images_data and idx < len(highres_images_data):
+                    try:
+                        # Giả định bạn có hàm helper để lấy (width, height) từ data str (base64/path)
+                        # Ví dụ dùng PIL: Image.open(io.BytesIO(base64.b64decode(img_str))).size
+                        orig_w, orig_h = cls._get_image_dimensions(images_data[idx])
+                        high_w, high_h = cls._get_image_dimensions(
+                            highres_images_data[idx]
+                        )
+
+                        scale_x = high_w / orig_w
+                        scale_y = high_h / orig_h
+                    except Exception as e:
+                        logger.warning(
+                            f"Không thể tính scale factor cho ảnh index {idx}: {e}. Giữ nguyên kích thước gốc."
+                        )
+
                 for det in img_det.detections:
-                    img_boxes.append(
-                        [
-                            int(det.bbox.x1),
-                            int(det.bbox.y1),
-                            int(det.bbox.x2),
-                            int(det.bbox.y2),
-                        ]
-                    )
+                    # Nhân tọa độ với scale factor và ép kiểu về int
+                    x1 = int(det.bbox.x1 * scale_x)
+                    y1 = int(det.bbox.y1 * scale_y)
+                    x2 = int(det.bbox.x2 * scale_x)
+                    y2 = int(det.bbox.y2 * scale_y)
+
+                    img_boxes.append([x1, y1, x2, y2])
+
                 recognition_bboxes.append(img_boxes)
 
             logger.info(
